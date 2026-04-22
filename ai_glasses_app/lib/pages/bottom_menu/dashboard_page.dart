@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../overlays/sneak_mode_overlay.dart';
+import '../../overlays/daily_quest_overlay.dart';
+import '../../components/good_pulsing_sphere.dart';
+import '../../components/bad_pulsing_sphere.dart';
 
 class DashboardPage extends StatelessWidget {
   const DashboardPage({super.key});
@@ -57,20 +60,23 @@ class DashboardPage extends StatelessWidget {
             const Spacer(),
 
             // A középső nagy "Gömb" (Később ide jöhet a Rive animáció)
-            Container(
-              width: 250,
-              height: 250,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: Colors.teal,
-                  width: 3,
-                ),
-                // Opcionális háttérszín a gömbnek:
-                // color: Colors.teal.withOpacity(0.1),
-              ),
-            ),
-
+            // Container(
+            //   width: 250,
+            //   height: 250,
+            //   decoration: BoxDecoration(
+            //     shape: BoxShape.circle,
+            //     border: Border.all(
+            //       color: Colors.teal,
+            //       width: 3,
+            //     ),
+            //     // Opcionális háttérszín a gömbnek:
+            //     // color: Colors.teal.withOpacity(0.1),
+            //   ),
+            // ),
+            const GoodPulsingSphere(),
+            const Spacer(),
+            const BadPulsingSphere(),
+            
             const Spacer(),
 
             // Daily Quest gomb (A rajzon lévő sárgás kiemeléssel)
@@ -82,7 +88,8 @@ class DashboardPage extends StatelessWidget {
               ),
               child: TextButton(
                 onPressed: () {
-                  // Ide jön a napi küldetés megnyitása
+                  // Itt hívjuk meg a felugró ablakot
+                  showDailyQuestDialog(context);
                 },
                 child: const Padding(
                   padding: EdgeInsets.symmetric(vertical: 12.0),
