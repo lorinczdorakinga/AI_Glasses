@@ -1,0 +1,44 @@
+[
+  {
+    "time": "19:08",
+    "activity": "Writing/Studying",
+    "productive": true,
+    "reason": "The man is seated and focused on materials (notebook/folder), indicating work or deep thought."
+  },
+  {
+    "time": "19:08",
+    "activity": "Viewing Art/Attending an Exhibition",
+    "productive": false,
+    "reason": "The individuals are engaged in cultural leisure and socializing, not performing work-related tasks."
+  },
+  {
+    "time": "19:08",
+    "activity": "Working/Meeting",
+    "productive": true,
+    "reason": "The subject is seated at a table in professional attire, suggesting engagement in work or discussion."
+  },
+  {
+    "time": "19:09",
+    "activity": "Coding/Software Development",
+    "productive": true,
+    "reason": "The individual is deeply engaged in writing or debugging code across multiple monitors, indicating focused technical work."
+  },
+  {
+    "time": "19:09",
+    "activity": "Socializing/Taking a Break",
+    "productive": false,
+    "reason": "The individuals are posing for a photo and appear to be socializing or taking a break, rather than engaging in visible work tasks."
+  },
+  {
+    "time": "19:09",
+    "activity": "Filming/Media Production Shoot",
+    "productive": true,
+    "reason": "The individuals are actively engaged in setting up and operating professional camera equipment, indicating focused work."
+  },
+  {
+    "time": "19:09",
+    "activity": "Photography/Hobby",
+    "productive": false,
+    "reason": "The individual appears to be engaging in leisure or hobby photography rather than focused work."
+  }
+]
