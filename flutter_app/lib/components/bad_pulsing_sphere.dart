@@ -69,8 +69,8 @@ class _MeltingVolatilePainter extends CustomPainter {
     final glowPaint = Paint()
       ..shader = RadialGradient(
         colors: [
-          Colors.white.withOpacity(0.65),
-          burgundyColor.withOpacity(0.85),
+          Colors.white.withValues(alpha: 0.65),
+          burgundyColor.withValues(alpha: 0.85),
           Colors.transparent,
         ],
         stops: const [0.0, 0.75, 1.0],
@@ -106,20 +106,19 @@ class _MeltingVolatilePainter extends CustomPainter {
         final x = center.dx + r * math.cos(angle);
         final y = center.dy + r * math.sin(angle);
 
-        if (i == 0) path.moveTo(x, y);
-        else path.lineTo(x, y);
+        if (i == 0) {
+          path.moveTo(x, y);
+        } else {
+          path.lineTo(x, y);
+         }
       }
       canvas.drawPath(path, paint);
     }
 
     // Fekete "széteső" alapvonal
-    drawMeltingWave(Colors.black.withOpacity(0.8), 5, 2, 8, 0, 4.0, true);
-
-    // Sötét burgundi réteg
-    drawMeltingWave(burgundyColor.withOpacity(0.9), 13, 10, 25, math.pi / 4, 2.5, true);
-
-    // Nagyon sötét, szinte feketébe hajló vörös/barna réteg
-    drawMeltingWave(const Color(0xFF3B0B0B).withOpacity(0.8), 18, -12, 15, math.pi, 2.0, true);
+    drawMeltingWave(Colors.black.withValues(alpha: 0.8), 5, 2, 8, 0, 4.0, true);
+drawMeltingWave(burgundyColor.withValues(alpha: 0.9), 13, 10, 25, math.pi / 4, 2.5, true);
+drawMeltingWave(const Color(0xFF3B0B0B).withValues(alpha: 0.8), 18, -12, 15, math.pi, 2.0, true);
   }
 
   @override

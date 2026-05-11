@@ -60,8 +60,8 @@ class _FloatingBlobPainter extends CustomPainter {
     final glowPaint = Paint()
       ..shader = RadialGradient(
         colors: [
-          Colors.white.withOpacity(0.7), // Fehéredő mag
-          tealColor.withOpacity(0.6),    // Legintenzívebb a kerületnél
+          Colors.white.withValues(alpha: 0.7),
+          tealColor.withValues(alpha: 0.6),   // Legintenzívebb a kerületnél
           Colors.transparent,            // Kifelé elhalványul
         ],
         stops: const [0.0, 0.75, 1.0],
@@ -88,14 +88,17 @@ class _FloatingBlobPainter extends CustomPainter {
         final x = center.dx + r * math.cos(angle);
         final y = center.dy + r * math.sin(angle);
 
-        if (i == 0) path.moveTo(x, y);
-        else path.lineTo(x, y);
+        if (i == 0) {
+            path.moveTo(x, y);
+              } else {
+                 path.lineTo(x, y);
+              }
       }
       canvas.drawPath(path, paint);
     }
 
-    drawFloatingWave(tealColor.withOpacity(0.8), 4, 6, 12, 10, 0);
-    drawFloatingWave(const Color(0xFF81D4FA).withOpacity(0.7), 5, 3, 15, 12, math.pi / 2);
+    drawFloatingWave(tealColor.withValues(alpha: 0.8), 4, 6, 12, 10, 0);
+    drawFloatingWave(const Color(0xFF81D4FA).withValues(alpha: 0.7), 5, 3, 15, 12, math.pi / 2);
   }
 
   @override
