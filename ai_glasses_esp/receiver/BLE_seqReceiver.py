@@ -1,19 +1,17 @@
 import asyncio
 from bleak import BleakScanner, BleakClient, BleakError
 
-SERVICE_UUID = "0000abcd-0000-1000-8000-00805f9b34fb"
-CONTROL_UUID = "00001234-0000-1000-8000-00805f9b34fb"
-STATUS_UUID  = "00001235-0000-1000-8000-00805f9b34fb"
-DATA_UUID    = "00001236-0000-1000-8000-00805f9b34fb"
+SERVICE_UUID = "e86fa43c-5ae8-4663-abb2-889f09cfb822"
+CONTROL_UUID = "8a80c26e-404c-4436-8877-bc643a7194c9"
+STATUS_UUID  = "13a56951-37c2-4517-98a6-353e7c5b299b"
+DATA_UUID    = "8fcc7c0e-a4c0-4f56-abcd-fb61e137aa7a"
 
 CMD_CMD_UUID = "06e025b3-597e-4c94-87df-c4bd1b4e0b0e"
 CMD_BAT_UUID = "726530db-8845-4241-a10e-e26f20b095d6"
 
-
 TARGET_NAME = "AIGLS"
 
 image_counter = 1
-
 
 # Image state
 expected_chunks = 0
