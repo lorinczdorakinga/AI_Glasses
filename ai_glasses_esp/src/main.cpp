@@ -337,6 +337,60 @@ void deleteAllImages() {
 
 #pragma endregion SD
 
+#pragma region BATTERY
+const float LIPO_CURVE[][2] = {
+    {4.20, 100},
+    {4.15,  95},
+    {4.11,  90},
+    {4.08,  85},
+    {4.02,  80},
+    {3.98,  75},
+    {3.95,  70},
+    {3.91,  65},
+    {3.87,  60},
+    {3.83,  55},
+    {3.79,  50},
+    {3.75,  45},
+    {3.71,  40},
+    {3.67,  35},
+    {3.63,  30},
+    {3.58,  25},
+    {3.50,  20},
+    {3.40,  15},
+    {3.30,  10},
+    {3.20,   5},
+    {3.00,   0},
+};
+const int CURVE_LEN = sizeof(LIPO_CURVE) / sizeof(LIPO_CURVE[0]);
+
+uint8_t getBattery(){
+    long sum = 0;
+    for (int i = 0; i < BAT_SAMPLES; i++) {
+        sum += analogRead(BAT_PIN);
+        delay(2);
+    }
+    long readout = sum / BAT_SAMPLES;
+    float voltage = readout / (float)ADC_RESOLUTION * VMAX;
+    voltage = 2 * voltage; // voltage divider
+
+
+    if (voltage >= LIPO_CURVE[0][0]) return 100;
+    // Below min
+    if (voltage <= LIPO_CURVE[CURVE_LEN - 1][0]) return 0;
+
+    // Find segment and interpolate
+    for (int i = 0; i < CURVE_LEN - 1; i++) {
+        if (voltage <= LIPO_CURVE[i][0] && voltage >= LIPO_CURVE[i + 1][0]) {
+            float vHigh = LIPO_CURVE[i][0],   pHigh = LIPO_CURVE[i][1];
+            float vLow  = LIPO_CURVE[i + 1][0], pLow = LIPO_CURVE[i + 1][1];
+            // Linear interpolation between two points
+            return (uint8_t)(pLow + (voltage - vLow) * (pHigh - pLow) / (vHigh - vLow));
+        }
+    }
+    return 0;
+}
+#pragma endregion BATTERY
+
 
 #pragma region MAIN
 //some time things, in s
@@ -344,14 +398,6 @@ void deleteAllImages() {
 inline unsigned long toMicros(unsigned long sec){ 
     return sec * 1000000UL;
 }
-
-uint8_t getBattery(){
-    //dummy function
-    //TODO: implement proper battery management and calculation
-    return 16;
-}
-
-
 
 unsigned long start_time;
 
@@ -375,6 +421,7 @@ void setup() {
     Serial.print("Initializing nimBLE....");
     NimBLEDevice::init("AIGLS");
     NimBLEDevice::setMTU(MTU_RATE);
+    NimBLEDevice::setOwnAddrType(BLE_OWN_ADDR_PUBLIC);
     pServer = NimBLEDevice::createServer(); //create server
     pImgService = pServer->createService(IMG_SERVICE_UUID); //create image service
     
@@ -423,7 +470,10 @@ void setup() {
     // if(exists_SD){
     //     latest_index = findLatestIndex();
     // }
-    
+
+    //Battery pin setup
+    analogReadResolution(12);      // 12-bit = 0–4095
+    analogSetAttenuation(ADC_11db);
     
 }
 

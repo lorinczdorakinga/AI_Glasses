@@ -20,3 +20,9 @@
 #define BLE_TIMEOUT     (20ULL)     //in s
 #define TIME_TO_SLEEP   (60ULL)   // in s
 #define REQUEST_TIMEOUT (2ULL) //timeout for img_state = SEND, if no commands are received for x amount of time, sends error, to "wake up" the client
+
+
+#define BAT_PIN D8
+#define VMAX 3.3f
+#define ADC_RESOLUTION 4095
+#define BAT_SAMPLES 16
