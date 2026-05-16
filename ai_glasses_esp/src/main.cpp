@@ -24,19 +24,19 @@ NimBLEService   *pCmdService;
 NimBLECharacteristic *pCmdChar;
 NimBLECharacteristic *pBatChar;
 
+//volatile variables: changed by BLE callbacks
+volatile bool client_connected = false;
+volatile bool data_request = false;
 
-bool client_connected = false;
-bool data_request = false;
+volatile uint16_t current_conn_handle = BLE_HS_CONN_HANDLE_NONE;
 
-uint16_t current_conn_handle = BLE_HS_CONN_HANDLE_NONE;
-
-RTC_DATA_ATTR uint32_t latest_index = 0;
-uint32_t requested_image_index = 0;
+RTC_DATA_ATTR volatile uint32_t latest_index = 0;
+volatile uint32_t requested_image_index = 0;
 
 //For CMDService
-bool goToSleep = false;
-bool reset = false;
-uint32_t sleepTimeS = 0;
+volatile bool goToSleep = false;
+volatile bool reset = false;
+volatile uint32_t sleepTimeS = 0;
 
 //BLE Callbacks
 class ImgControlCallbacks : public NimBLECharacteristicCallbacks {
@@ -270,8 +270,6 @@ camera_fb_t * framebuffer;
 
 #pragma region SD
 
-
-#define SD_CS 21
 
 bool exists_SD = 0;
 

@@ -26,3 +26,5 @@
 #define VMAX 3.3f
 #define ADC_RESOLUTION 4095
 #define BAT_SAMPLES 16
+
+#define SD_CS 21 //dont change this: it is specific to this esp32s3 model
