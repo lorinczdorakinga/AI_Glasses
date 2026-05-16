@@ -1,0 +1,6 @@
+# .pio
+# .vscode/*
+# images/
+**/.vscode
+**/.pio
+ai_glasses_esp/images
