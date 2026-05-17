@@ -33,6 +33,10 @@ dependencies:
   http: ^1.2.0
   shared_preferences: ^2.2.2
   provider: ^6.1.1
+  fl_chart: ^0.69.0   # ← ADD THIS
+  flutter_stripe: ^12.6.0
+
+flutter_stripe: ^11.1.0
 
 dev_dependencies:
   flutter_test:
