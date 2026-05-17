@@ -485,8 +485,13 @@ void setup() {
     Serial.println("DONE");
     ///SD setup:
     Serial.println("Initializing SD:");
+    // In setup(), replace your SD.begin line with:
+    // SPI.begin(7, 8, 9, 21);          // SCK, MISO, MOSI, CS
+    // SPI.setFrequency(1000000);        // 1MHz globally
+    // exists_SD = SD.begin(SD_CS, SPI, 1000000);
     exists_SD = SD.begin(SD_CS,SPI, 4000000);
     Serial.println(exists_SD ? "Success" : "Failed" );
+    //Serial.printf("SPI frequency: %d Hz\n", SPI.frequency());
     
     delay(100);
 
@@ -508,6 +513,10 @@ void setup() {
 }
 
 uint64_t sendStartTime = 0;
+
+// void sdBeginTransaction() {
+//     SPI.setFrequency(1000000);
+// }
 
 void loop(){
 
@@ -596,6 +605,7 @@ void loop(){
             if( requested_image_index - 1 < latest_index && data_request ){ //delete previous image: if next is already requesting => there was no error
                 Serial.println("Deleting previous");
                 sprintf(imgPath, "/%04d.jpg", requested_image_index - 1);
+                // sdBeginTransaction();
                 if(SD.exists(imgPath)) {
                     SD.remove(imgPath);
                 }
@@ -605,6 +615,7 @@ void loop(){
                 Serial.println("Sending from SD");
                 //char imgPath[32];
                 sprintf(imgPath, "/%04d.jpg", requested_image_index);
+                // sdBeginTransaction();
                 if(!SD.exists(imgPath)){
                     sendError(requested_image_index, 0);
                     data_request = false;
