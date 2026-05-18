@@ -3,8 +3,8 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/auth_text_field.dart';
 import 'register_screen.dart';
-import 'goal_screen.dart';
 import 'forgot_password_screen.dart';
+import 'home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -15,6 +15,9 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey  = GlobalKey<FormState>();
   final _email    = TextEditingController();
   final _password = TextEditingController();
+  
+  // ÚJ: Állapotváltozó a checkboxhoz
+  bool _rememberMe = false;
 
   @override
   void dispose() {
@@ -25,11 +28,24 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    final auth    = context.read<AuthProvider>();
-    final success = await auth.login(_email.text.trim(), _password.text);
+    
+    final auth = context.read<AuthProvider>();
+    
+    // ÚJ: Átadjuk a rememberMe értékét a login függvénynek
+    final success = await auth.login(
+      _email.text.trim(), 
+      _password.text, 
+      rememberMe: _rememberMe,
+    );
+    
     if (!mounted) return;
+    
     if (success) {
-Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const GoalScreen()));    } else {
+      Navigator.pushReplacement(
+        context, 
+        MaterialPageRoute(builder: (_) => const HomeScreen()),
+      );
+    } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(auth.error ?? 'Login failed'), backgroundColor: Colors.red),
       );
@@ -66,7 +82,25 @@ Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const GoalS
                     obscure:    true,
                     validator:  (v) => v!.length >= 6 ? null : 'At least 6 characters',
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 8), // Kisebb térköz
+                  
+                  // ÚJ: Remember me checkbox
+                  Row(
+                    children: [
+                      Checkbox(
+                        value: _rememberMe,
+                        activeColor: Colors.indigo,
+                        onChanged: (value) {
+                          setState(() {
+                            _rememberMe = value ?? false;
+                          });
+                        },
+                      ),
+                      const Text('Remember me', style: TextStyle(fontSize: 16)),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
                   SizedBox(
                     width: double.infinity,
                     height: 50,
