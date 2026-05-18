@@ -607,6 +607,8 @@ void loop(){
                 if(SD.exists(imgPath)) {
                     bool removed = SD.remove(imgPath);
                     Serial.println(removed ? "removed successfully" : "unsuccesful remove");
+                } else {
+                    Serial.println("Couldnt find file to remove");
                 }
             }
 
