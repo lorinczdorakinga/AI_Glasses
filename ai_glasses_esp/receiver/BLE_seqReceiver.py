@@ -170,7 +170,7 @@ async def terminal_input_loop(client):
             # Accept plain R
             if cmd == "R":
                 valid = True
-                await client.write_gatt_char( CMD_CMD_UUID, b'R' )
+                await client.write_gatt_char( CMD_CMD_UUID, b'R' )  
 
             # Accept S<number>
             elif len(cmd) >= 2 and cmd[0] == 'S' and cmd[1:].isdigit():
@@ -178,6 +178,11 @@ async def terminal_input_loop(client):
                 payload = b'S' + num.to_bytes(4, 'big')
                 await client.write_gatt_char( CMD_CMD_UUID, payload )
                 valid = True
+            # Accept F
+            elif cmd == "F":
+                valid = True
+                await client.write_gatt_char(CMD_CMD_UUID, b'F')
+                print("Sent forget-bonds command. ESP32 will re-enter pairing mode.")
 
             if valid:
                 print(f"Sent CMD: {cmd}")
