@@ -2,7 +2,7 @@
 #include "NimBLEDevice.h"
 #include "esp_camera.h"
 #include <SPI.h>
-#include <SD.h>
+#include <SdFat.h>
 
 //Config File
 #include "config.h"
@@ -113,6 +113,7 @@ class ServerCallbacks : public NimBLEServerCallbacks {
 
     void onDisconnect(NimBLEServer* pServer, NimBLEConnInfo& connInfo, int reason) override {
         client_connected = false;
+        data_request = false;
         Serial.printf("Disconnected, reason: %d\n", reason);
 
         if (reason == BLE_ERR_AUTH_FAIL) {
@@ -291,22 +292,25 @@ camera_fb_t * framebuffer;
 
 #pragma region SD
 
-
+SdFs SD;
 bool exists_SD = 0;
 
 uint32_t findLatestIndex() {
     uint32_t maxIndex = 0;
-    File root = SD.open("/");
+    FsFile root = SD.open("/");
 
     if(!root || !root.isDirectory()) {
         Serial.println("Failed to open root");
         return 0;
     }
 
-    File file = root.openNextFile();
+    char cpath[32];
+    FsFile file = root.openNextFile();
     while(file) {
         if(!file.isDirectory()) {
-            String name = file.name();
+            size_t len = file.getName(cpath, 32);
+            String name(cpath, len);
+            // String name = file.getName();
             name = "/" + name;
             if(name.endsWith(".jpg")) {
                 int slash = name.lastIndexOf('/');
@@ -329,16 +333,17 @@ uint32_t findLatestIndex() {
 }
 
 void deleteAllImages() {
-
-    File root = SD.open("/");
+    char cpath[32];
+    FsFile root = SD.open("/");
     if(!root || !root.isDirectory()) {
         Serial.println("Failed to open SD root");
         return;
     }
 
-    File file = root.openNextFile();
+    FsFile file = root.openNextFile();
     while(file) {
-        String path = file.name();
+        size_t len = file.getName(cpath, 32);
+        String path(cpath, len);
         file.close();
         path = "/" + path;
         Serial.print("Deleting ");
@@ -485,13 +490,9 @@ void setup() {
     Serial.println("DONE");
     ///SD setup:
     Serial.println("Initializing SD:");
-    // In setup(), replace your SD.begin line with:
-    // SPI.begin(7, 8, 9, 21);          // SCK, MISO, MOSI, CS
-    // SPI.setFrequency(1000000);        // 1MHz globally
-    // exists_SD = SD.begin(SD_CS, SPI, 1000000);
-    exists_SD = SD.begin(SD_CS,SPI, 4000000);
+    exists_SD = SD.begin(SD_CS);
     Serial.println(exists_SD ? "Success" : "Failed" );
-    //Serial.printf("SPI frequency: %d Hz\n", SPI.frequency());
+    
     
     delay(100);
 
@@ -514,18 +515,14 @@ void setup() {
 
 uint64_t sendStartTime = 0;
 
-// void sdBeginTransaction() {
-//     SPI.setFrequency(1000000);
-// }
-
 void loop(){
 
     static int capture_attempts = 0;
     static int send_attempts = 0;
     char imgPath[32];
 
-    if(reset){
-        Serial.println("Received RESET");
+    if(reset || (latest_index + 1 > MAX_INDEX) ){
+        Serial.println("Received RESET or reached index MAX_INDEX");
 
         pServer->disconnect(current_conn_handle);
         delay(200);
@@ -601,13 +598,15 @@ void loop(){
         }
         
         case(SEND) : {
+            delay(50);
 
             if( requested_image_index - 1 < latest_index && data_request ){ //delete previous image: if next is already requesting => there was no error
                 Serial.println("Deleting previous");
                 sprintf(imgPath, "/%04d.jpg", requested_image_index - 1);
                 // sdBeginTransaction();
                 if(SD.exists(imgPath)) {
-                    SD.remove(imgPath);
+                    bool removed = SD.remove(imgPath);
+                    Serial.println(removed ? "removed successfully" : "unsuccesful remove");
                 }
             }
 
@@ -617,13 +616,15 @@ void loop(){
                 sprintf(imgPath, "/%04d.jpg", requested_image_index);
                 // sdBeginTransaction();
                 if(!SD.exists(imgPath)){
+                    Serial.println("Couldnt find file");
                     sendError(requested_image_index, 0);
                     data_request = false;
                     break;
                 }
-                fs::File file = SD.open(imgPath, "r", false);
+                FsFile file = SD.open(imgPath, FILE_READ);
                 if (!file) {
-                    sendError(requested_image_index, 0);
+                    Serial.println("Couldnt open file");
+                    sendError(requested_image_index, 2);
                     data_request = false;
                     break;
                 }   
@@ -666,11 +667,11 @@ void loop(){
         }
         case(SAVE_TO_SD):{
             Serial.println("Saving to SD Card");
-            //TODO: implement saving here
+            delay(50);
 
             //char imgPath[10];
             sprintf(imgPath, "/%04d.jpg", latest_index);
-            fs::File file = SD.open(imgPath, "w", true);
+            FsFile file = SD.open(imgPath, FILE_WRITE);
             if (!file) {
                 Serial.println("Failed to open file for writing");
                 img_state = GO_SLEEP;

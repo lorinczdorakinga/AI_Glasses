@@ -19,7 +19,7 @@
 // Timeouts:
 #define BLE_TIMEOUT     (10ULL)     //in s
 #define PAIRING_TIMEOUT (200ULL)     //in s
-#define TIME_TO_SLEEP   (20ULL)   // in s
+#define TIME_TO_SLEEP   (20ULL)   // in s, should be 60 for final product
 #define REQUEST_TIMEOUT (2ULL) //timeout for img_state = SEND, if no commands are received for x amount of time, sends error, to "wake up" the client
 
 
