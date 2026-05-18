@@ -22,6 +22,7 @@
 #define TIME_TO_SLEEP   (20ULL)   // in s, should be 60 for final product
 #define REQUEST_TIMEOUT (2ULL) //timeout for img_state = SEND, if no commands are received for x amount of time, sends error, to "wake up" the client
 
+#define CHUNK_TIME (20)     // time between chunks in sendImage(), kind of  an inverse of bitreate
 
 #define BAT_PIN D0
 #define VMAX 3.3f
@@ -29,3 +30,4 @@
 #define BAT_SAMPLES 16
 
 #define SD_CS 21 //dont change this: it is specific to this esp32s3 model
+
