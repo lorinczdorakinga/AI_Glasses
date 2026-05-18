@@ -1,0 +1,31 @@
+# EN
+
+The problem we set out to solve is creating an improved productivity tool, which not only lets you set out to improve parts of your life, but also actively gives daily feedback and advice on how you do. 
+
+The project consists of 3 parts: a pair of glasses with an integrated camera, a phone app and the AI and backend. 
+
+The glasses you wear every day, which take a picture of what you’re doing every minute and communicate that over BLE to the phone app, this all happens automatically. Hardware-wise, the prototype is built on a XIAO ESP32S3-Sense development module, with an OV3660 Camera, all housed in a custom 3D-Printed chassis. The firmware is written in C++ and depends on the NimBLE Bluetooth, the esp32-camera and Arduino SDFAT libraries. It implements taking pictures, sending them over Bluetooth Low Energy or saving to the SD card and sending later if the Phone is not available. This happens securely, using standard BLE pairing and encryption.
+
+The phone app (written in Dart using Flutter, thus supporting Android and iOS) is the user's control center. On first launch, users register and select a personal goal from five categories: Focus, Consumption, Activity, Social, or Explore. They can also set a preferred time for their daily AI-generated summary. Throughout the day, the app receives images from the glasses and forwards them to the backend. Secure authentication (JWT + bcrypt) ensures only the right user sees their data, and a password-reset flow via email means account access is never lost. There is also a premium tier, Nutrition, which costs 15 RON/month, and provides feedback on the user’s eating habits. 
+
+The backend handles AI image analysis, receiving images, analyzing them in batches and evaluating them against the user’s stated goal. The AI evaluates each image against the user's stated goal, for example, checking whether a "Focus" user is working at their desk or whether an "Activity" user is moving. Results are stored in PostgreSQL alongside user profiles and goals. At the scheduled daily time, the backend compiles all evaluations into a performance summary delivered to the user
+
+Where our product stands out is the gamification of self-improvement: In addition to having a seamless way to track their progress, Users can earn levels and achievements based on their consistency, and can take on quests tied to their goals. This transforms habit-tracking from a sterile checklist into a system with intrinsic motivation making progress feel rewarding. The design philosophy is that sustainable behavior change happens when challenge and enjoyment coexist.
+
+In, short: the Glasses capture a picture every minute, send it over Bluetooth the phone, transferring to the backend in turn, where it is evaluated. Every day the user receives a summary, based on which they improve. To ensure security and ease load on devices, images are immediately deleted after processing on every level.
+
+# RO
+
+Problema pe care ne-am propus să o rezolvăm este crearea unui instrument de productivitate îmbunătățit, care nu doar îți permite să îți îmbunătățești diverse aspecte ale vieții, ci îți oferă și feedback zilnic activ și sfaturi despre cum evoluezi.
+
+Proiectul este alcătuit din 3 părți: o pereche de ochelari cu cameră integrată, o aplicație de telefon și componenta de AI și backend.
+
+Ochelarii sunt purtați zilnic și fac o fotografie cu ceea ce faci, apoi o transmit automat prin BLE către aplicația de telefon. La nivel hardware, prototipul este construit pe un modul de dezvoltare XIAO ESP32S3-Sense, cu o cameră OV3660, toate integrate într-un șasiu personalizat imprimat 3D. Firmware-ul este scris în C++ și depinde de bibliotecile NimBLE Bluetooth, esp32-camera și Arduino SDFAT. Acesta permite realizarea de fotografii, trimiterea lor prin Bluetooth Low Energy sau salvarea pe cardul SD și trimiterea ulterioară dacă telefonul nu este disponibil. Totul se realizează în mod securizat, folosind împerechere standard BLE și criptare.
+
+Aplicația de telefon (scrisă în Dart folosind Flutter, deci compatibilă cu Android și iOS) este centrul de control al utilizatorului. La prima pornire, utilizatorii își creează un cont și aleg un obiectiv personal din cinci categorii: Focus, Consum, Activitate, Social sau Explorare. De asemenea, pot seta ora preferată pentru rezumatul zilnic generat de AI. Pe parcursul zilei, aplicația primește imagini de la ochelari și le transmite mai departe către backend. Autentificarea securizată (JWT + bcrypt) asigură că doar utilizatorul corect își vede datele, iar fluxul de resetare a parolei prin email garantează că accesul la cont nu se pierde niciodată. Există și un nivel premium, Nutrition, care costă 15 RON/lună și oferă feedback privind obiceiurile alimentare ale utilizatorului.
+
+Backend-ul se ocupă de analiza imaginilor cu AI, primind imaginile, analizându-le în batch-uri și evaluându-le în raport cu obiectivul declarat al utilizatorului. AI-ul evaluează fiecare imagine în funcție de scopul utilizatorului, de exemplu verificând dacă un utilizator „Focus” lucrează la birou sau dacă un utilizator „Activitate” este în mișcare. Rezultatele sunt stocate în PostgreSQL împreună cu profilurile și obiectivele utilizatorilor. La ora zilnică programată, backend-ul compilează toate evaluările într-un rezumat al performanței livrat utilizatorului.
+
+Elementul care diferențiază produsul nostru este gamificarea auto-îmbunătățirii: pe lângă un mod fluid de urmărire a progresului, utilizatorii pot câștiga niveluri și realizări în funcție de consecvență și pot accepta misiuni legate de obiectivele lor. Acest lucru transformă urmărirea obiceiurilor dintr-o listă sterilă de bifat într-un sistem cu motivație intrinsecă, în care progresul devine recompensator. Filosofia de design este că schimbarea comportamentală sustenabilă apare atunci când provocarea și plăcerea coexistă.
+
+Pe scurt: ochelarii capturează o fotografie la fiecare minut, o trimit prin Bluetooth către telefon, care la rândul său o transmite către backend, unde este evaluată. În fiecare zi, utilizatorul primește un rezumat pe baza căruia își poate îmbunătăți comportamentul. Pentru a asigura securitatea și a reduce încărcarea dispozitivelor, imaginile sunt șterse imediat după procesare la fiecare nivel.
