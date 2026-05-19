@@ -70,5 +70,9 @@
 	<string>Az appnak szüksége van a Bluetooth-ra az ESP32 szenzorhoz való csatlakozáshoz.</string>
 	<key>NSBluetoothPeripheralUsageDescription</key>
 	<string>Az appnak szüksége van a Bluetooth-ra az ESP32 szenzorhoz való csatlakozáshoz.</string>
+	<key>UIBackgroundModes</key>
+    <array>
+        <string>bluetooth-central</string>
+    </array>
 </dict>
 </plist>

@@ -1,103 +1,94 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 
-// Ezt a függvényt hívjuk meg a gombnyomásra
-void showDailyQuestDialog(BuildContext context, {String? questText}) {
+void showDailyQuestDialog(BuildContext context, {String? questText, required Function(bool) onQuestCompleted}) {
   showDialog(
     context: context,
     builder: (context) => _DailyQuestDialogContent(
-      // Ha nem adunk meg szöveget, a rajzodon lévő dummy szöveget használja
       questText: questText ?? 'Go out to get\ngroceries but\nwithout your\nphone.',
+      onQuestCompleted: onQuestCompleted,
     ),
   );
 }
 
-class _DailyQuestDialogContent extends StatelessWidget {
+class _DailyQuestDialogContent extends StatefulWidget {
   final String questText;
+  final Function(bool) onQuestCompleted;
 
-  const _DailyQuestDialogContent({required this.questText});
+  const _DailyQuestDialogContent({required this.questText, required this.onQuestCompleted});
+  @override
+  State<_DailyQuestDialogContent> createState() => _DailyQuestDialogContentState();
+}
+
+class _DailyQuestDialogContentState extends State<_DailyQuestDialogContent> {
+  bool _isLoading = false;
+
+  Future<void> _acceptQuest() async {
+    setState(() => _isLoading = true);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token') ?? '';
+      final response = await http.post(
+        Uri.parse('http://187.124.25.127:3000/api/auth/quest/complete'),
+        headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
+      );
+      if (!mounted) return;
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        widget.onQuestCompleted(data['levelUp'] ?? false);
+        Navigator.pop(context); 
+      } else {
+        setState(() => _isLoading = false);
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: Colors.black, width: 2),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      backgroundColor: Colors.white,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24),
       child: Padding(
-        padding: const EdgeInsets.all(20.0),
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Bezáró X gomb a jobb felső sarokban
             Align(
               alignment: Alignment.topRight,
-              child: IconButton(
-                icon: const Icon(Icons.close, size: 28),
-                onPressed: () => Navigator.pop(context),
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-              ),
+              child: IconButton(icon: const Icon(Icons.close, color: Colors.grey), onPressed: () => Navigator.pop(context)),
             ),
-            
-            // "DAILY QUEST" cím sárga, dupla keretben (a rajzolt kiemelés imitálása)
             Container(
-              margin: const EdgeInsets.only(top: 10, bottom: 30),
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.amber, width: 4),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Container(
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.black, width: 1.5),
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                child: const Text(
-                  'DAILY QUEST',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 2.0,
-                  ),
-                ),
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(20)),
+              child: Text('DAILY QUEST', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.teal.shade700, letterSpacing: 1.5)),
             ),
-
-            // A küldetés szövege (a rajzhoz hasonló narancsos-pirosas színnel)
+            const SizedBox(height: 24),
             Text(
-              questText,
+              widget.questText,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.w600,
-                color: Colors.deepOrange, 
-                height: 1.3,
-              ),
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: Colors.black87, height: 1.3),
             ),
-            
-            const SizedBox(height: 40),
-
-            // "Accept quest" ovális gomb
-            OutlinedButton(
-              onPressed: () {
-                debugPrint('Quest accepted!');
-                // IDE JÖN A LOGIKA A KÜLDETÉS ELFOGADÁSÁRA
-                Navigator.pop(context);
-              },
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Colors.black, width: 2),
-                shape: const StadiumBorder(), // Teljesen lekerekített (ovális) forma
-                padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
-              ),
-              child: const Text(
-                'Accept quest',
-                style: TextStyle(
-                  fontSize: 22,
-                  color: Colors.black,
-                  fontWeight: FontWeight.bold,
+            const SizedBox(height: 32),
+            SizedBox(
+              width: double.infinity,
+              height: 54,
+              child: ElevatedButton(
+                onPressed: _isLoading ? null : _acceptQuest,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.teal.shade600,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  elevation: 0,
                 ),
+                child: _isLoading 
+                    ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 3, color: Colors.white))
+                    : const Text('Accept quest', style: TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold)),
               ),
             ),
-            const SizedBox(height: 10),
           ],
         ),
       ),

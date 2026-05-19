@@ -1,0 +1,13 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "C/C++ Runner: Debug Session",
+      "type": "lldb",
+      "request": "launch",
+      "args": [],
+      "cwd": "/Users/lorinczdora/Documents/Development/AI_Glasses/ai_glasses_esp/src",
+      "program": "/Users/lorinczdora/Documents/Development/AI_Glasses/ai_glasses_esp/src/build/Debug/outDebug"
+    }
+  ]
+}
