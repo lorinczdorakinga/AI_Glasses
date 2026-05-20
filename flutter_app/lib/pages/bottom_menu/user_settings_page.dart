@@ -76,8 +76,8 @@ class _UserSettingsPageState extends State<UserSettingsPage> {
         Uri.parse('http://187.124.25.127:3000/api/auth/settings'),
         headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
         body: json.encode({
-           if (newGoal != null) 'goal': newGoal,
-           if (resetLevelForGoal != null) 'resetLevelForGoal': resetLevelForGoal,
+           'goal': ?newGoal,
+           'resetLevelForGoal': ?resetLevelForGoal,
         }),
       );
       if (!mounted) return;
@@ -103,9 +103,9 @@ class _UserSettingsPageState extends State<UserSettingsPage> {
         Uri.parse('http://187.124.25.127:3000/api/auth/credentials'),
         headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
         body: json.encode({
-           if (newEmail != null) 'email': newEmail,
-           if (newPassword != null) 'password': newPassword,
-           if (newUsername != null) 'username': newUsername,
+           'email': ?newEmail,
+           'password': ?newPassword,
+           'username': ?newUsername,
         }),
       );
       if (!mounted) return;

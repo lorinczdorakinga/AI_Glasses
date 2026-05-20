@@ -17,10 +17,9 @@ void showActivityListDialog(BuildContext context, List<DailyActivity> activities
         insetPadding: const EdgeInsets.symmetric(horizontal: 24),
         child: Container(
           padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
-          // Max a képernyő 70%-át foglalhatja el, utána bekapcsol a görgetés
           constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.7),
           child: Column(
-            mainAxisSize: MainAxisSize.min, // Csak akkora legyen, amekkora kell
+            mainAxisSize: MainAxisSize.min,
             children: [
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -30,15 +29,15 @@ void showActivityListDialog(BuildContext context, List<DailyActivity> activities
                 ],
               ),
               const SizedBox(height: 16),
-              Flexible( // Expanded helyett Flexible, hogy össze tudjon zsugorodni
-                child: RawScrollbar( // Elegáns vizuális görgetősáv
+              Flexible( 
+                child: RawScrollbar( 
                   thumbColor: Colors.teal.shade200,
                   radius: const Radius.circular(8),
                   thickness: 4,
                   child: ListView.separated(
-                    shrinkWrap: true, // Engedi, hogy a lista igazodjon az elemek számához
+                    shrinkWrap: true, 
                     physics: const BouncingScrollPhysics(),
-                    itemCount: activities.length,
+                    itemCount: activities.length, // Most már közvetlenül a kapott listát használja
                     separatorBuilder: (_, __) => const SizedBox(height: 12),
                     itemBuilder: (context, index) {
                       final activity = activities[index];

@@ -1,15 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_app/screens/home_screen.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // Új import
+import 'package:shared_preferences/shared_preferences.dart';
 import 'providers/auth_provider.dart';
 import 'screens/login_screen.dart';
+import 'providers/ble_provider.dart'; // A Bluetooth provider importja
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(
-    ChangeNotifierProvider(
-      create: (_) => AuthProvider(),
+    // JAVÍTVA: MultiProvider-t használunk, hogy végtelen számú providert felvehessünk
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => BleProvider()), // Itt indítjuk el a BLE Providert!
+      ],
       child: const MyApp(),
     ),
   );

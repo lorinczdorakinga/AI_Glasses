@@ -8,6 +8,9 @@ import '../../overlays/daily_quest_overlay.dart';
 import '../../overlays/activity_list_overlay.dart';
 import '../../components/good_pulsing_sphere.dart';
 import '../../components/bad_pulsing_sphere.dart';
+import 'package:provider/provider.dart';
+import '../../providers/auth_provider.dart';
+import '../../screens/login_screen.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -32,6 +35,8 @@ class _DashboardPageState extends State<DashboardPage> {
     DailyActivity(time: "9:10", description: "veszekedés a buszsofőrrel", isGood: false),
   ];
 
+  List <DailyActivity> _todayActivities = [];
+
   @override
   void initState() {
     super.initState();
@@ -53,28 +58,57 @@ class _DashboardPageState extends State<DashboardPage> {
         Uri.parse('http://187.124.25.127:3000/api/auth/settings'),
         headers: {'Authorization': 'Bearer $token'},
       );
-      if (response.statusCode == 200 && mounted) {
+
+      if (!mounted) return;
+
+      if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final goal = data['goal'] ?? 'focus';
         final levels = data['levels'] ?? {};
+        
+        final rawActivities = data['activities'] as List<dynamic>? ?? [];
+        List<DailyActivity> fetchedActivities = rawActivities.map((item) => DailyActivity(
+          time: item['time'] ?? '00:00',
+          description: item['description'] ?? 'Unknown activity',
+          isGood: item['isGood'] ?? false,
+        )).toList();
+
+        // ÚJ: A MOCK LOGIKA ITT VAN! Ha a backend üreset küld, betöltjük a teszt adatokat.
+        if (fetchedActivities.isEmpty) {
+          fetchedActivities = [
+            DailyActivity(time: "7:08", description: "energiaital", isGood: false),
+            DailyActivity(time: "7:56", description: "séta, kávé helyett", isGood: true),
+            DailyActivity(time: "8:10", description: "cigaretta", isGood: false),
+            DailyActivity(time: "8:39", description: "tanulás", isGood: true),
+            DailyActivity(time: "9:10", description: "veszekedés a buszsofőrrel", isGood: false),
+          ];
+        }
+
         setState(() {
           _currentGoal = goal;
           _currentLevel = levels[goal] ?? 1;
           _completedQuests = data['completedQuests'] ?? 0;
+          _todayActivities = fetchedActivities; // Ezt használja majd a gömb logikája is!
           _isLoading = false;
         });
+      } else if (response.statusCode == 401 || response.statusCode == 403) {
+        await context.read<AuthProvider>().logout();
+        if (!mounted) return;
+        Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const LoginScreen()), (route) => false);
+      } else {
+        setState(() => _isLoading = false);
       }
     } catch (e) {
       if (mounted) setState(() => _isLoading = false);
     }
   }
-
   @override
   Widget build(BuildContext context) {
     if (_isLoading) return const Center(child: CircularProgressIndicator(color: Colors.teal));
 
-    int goodCount = todayActivities.where((a) => a.isGood).length;
-    int badCount = todayActivities.where((a) => !a.isGood).length;
+    // Számolás az ÚJ listából
+    int goodCount = _todayActivities.where((a) => a.isGood).length;
+    int badCount = _todayActivities.where((a) => !a.isGood).length;
     bool showGoodSphere = goodCount >= badCount;
     double progressValue = _completedQuests / 5.0;
 
@@ -173,7 +207,8 @@ class _DashboardPageState extends State<DashboardPage> {
                   
                   // ANIMÁLT GÖMB
                   GestureDetector(
-                    onTap: () => showActivityListDialog(context, todayActivities),
+                    // Átadjuk az új listát a felugró ablaknak
+                    onTap: () => showActivityListDialog(context, _todayActivities), 
                     child: Hero(
                       tag: 'sphere',
                       child: showGoodSphere ? const GoodPulsingSphere() : const BadPulsingSphere(),

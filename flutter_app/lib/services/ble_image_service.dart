@@ -3,9 +3,10 @@ import 'dart:typed_data';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:io'; 
 
 class BleImageService {
-  final String targetDevicePrefix = "AIGLS";
+  final String targetDevicePrefix = ""; //MAJD AIGLS
 
   // UUID-k pontosan a config.h alapján
   final Guid imgServiceUuid = Guid("e86fa43c-5ae8-4663-abb2-889f09cfb822");
@@ -41,15 +42,33 @@ class BleImageService {
   Stream<List<ScanResult>> get scanResults => FlutterBluePlus.scanResults;
 
   // 3. Csatlakozás és a csatornák felfedezése
+  // 3. Csatlakozás és a csatornák felfedezése
   Future<bool> connectToDevice(BluetoothDevice device) async {
     try {
-      await device.connect(license: License.free, autoConnect: true);
+      // 1. Csatlakozás autoConnect kikapcsolásával (hibaelkerülés)
+      await device.connect(license: License.free, autoConnect: false, mtu: null);
       _device = device;
       
-      // Megpróbáljuk betölteni, hogy hol tartottunk legutóbb a képekkel
+      // 2. MTU kérése CSAK Androidon (mert az iOS automatikusan csinálja)
+      if (Platform.isAndroid) {
+        try {
+          print("MTU növelésének kérése Androidon (512 bájt)...");
+          await device.requestMtu(512); 
+          await Future.delayed(const Duration(milliseconds: 500)); 
+        } catch (e) {
+          print("MTU egyeztetési hiba (nem blokkoló): $e");
+        }
+      }
+
+      // ÚJ: Kiírjuk a végleges MTU-t, platformtól függetlenül (iOS-en is megmutatja az automata értéket!)
+      final currentMtu = await device.mtu.first;
+      print("✅ Sikeres csatlakozás! Végleges MTU méret: $currentMtu bájt");
+
+      // 3. Megpróbáljuk betölteni, hogy hol tartottunk legutóbb a képekkel
       final prefs = await SharedPreferences.getInstance();
       _nextIndexToRequest = prefs.getInt('aigls_next_index') ?? 0;
 
+      // 4. Szolgáltatások felfedezése és feliratkozás
       await _discoverAndSubscribe();
       return true;
     } catch (e) {
