@@ -1,5 +1,16 @@
 import asyncio
+import paramiko
 from bleak import BleakScanner, BleakClient, BleakError
+
+# ── SFTP Configuration ─────────────────────────────────────────────────────────
+SFTP_HOST     = "187.124.25.127"   # ← change to your target IP
+SFTP_PORT     = 22
+SFTP_USERNAME = "root"            # ← change to your SSH username
+SFTP_PASSWORD = "Cipocipocipo@3"        # ← change to your SSH password (or set to None to use key auth)
+SFTP_KEY_PATH = None              # ← set to e.g. "/home/you/.ssh/id_rsa" to use key auth instead
+SFTP_REMOTE_DIR = "/root/smart_glasses/images"      # ← remote directory to upload images into
+# ───────────────────────────────────────────────────────────────────────────────
+
 
 SERVICE_UUID = "e86fa43c-5ae8-4663-abb2-889f09cfb822"
 CONTROL_UUID = "8a80c26e-404c-4436-8877-bc643a7194c9"
@@ -11,7 +22,7 @@ CMD_BAT_UUID = "726530db-8845-4241-a10e-e26f20b095d6"
 
 TARGET_NAME = "AIGLS"
 
-image_counter = 1
+image_counter = 41
 
 # Image state
 expected_chunks = 0
@@ -95,6 +106,8 @@ def handle_data(_, data: bytearray):
     if expected_chunks > 0 and len(received_chunks) % 50 == 0:
         print(f"Received {len(received_chunks)}/{expected_chunks}")
 
+
+
 async def request_image(client):
     global image_counter
     global waiting_for_response
@@ -104,6 +117,35 @@ async def request_image(client):
     waiting_for_response = True
     print(f"Requested image {image_counter}")
 
+
+def upload_image_sftp(local_path: str):
+    """Upload a file via SFTP to the configured host. Supports both password and key auth."""
+    remote_filename = local_path.split("/")[-1]
+    remote_path = f"{SFTP_REMOTE_DIR}/{remote_filename}"
+ 
+    try:
+        transport = paramiko.Transport((SFTP_HOST, SFTP_PORT))
+ 
+        if SFTP_KEY_PATH:
+            private_key = paramiko.RSAKey.from_private_key_file(SFTP_KEY_PATH)
+            transport.connect(username=SFTP_USERNAME, pkey=private_key)
+        else:
+            transport.connect(username=SFTP_USERNAME, password=SFTP_PASSWORD)
+ 
+        sftp = paramiko.SFTPClient.from_transport(transport)
+ 
+        sftp.put(local_path, remote_path)
+        print(f"Uploaded {local_path} → {SFTP_HOST}:{remote_path}")
+ 
+        sftp.close()
+        transport.close()
+ 
+    except paramiko.AuthenticationException:
+        print(f"SFTP auth failed for {SFTP_USERNAME}@{SFTP_HOST}")
+    except paramiko.SSHException as e:
+        print(f"SFTP SSH error: {e}")
+    except OSError as e:
+        print(f"SFTP OS error: {e}")
 
 def save_image():
     global image_counter, image_attempts
@@ -130,10 +172,11 @@ def save_image():
     filename = f"images/image_{image_counter:04d}.jpg"
     with open(filename, "wb") as f:
         f.write(image_bytes)
+        f.close()
 
     print(f"Saved {filename}")
 
-    
+    upload_image_sftp(filename)
     reset_state()
 
 
