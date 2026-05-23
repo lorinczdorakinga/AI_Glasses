@@ -14,12 +14,7 @@ class _BadPulsingSphereState extends State<BadPulsingSphere> with SingleTickerPr
   @override
   void initState() {
     super.initState();
-    // LELASSÍTVA: 1 másodperc helyett 3 másodperces ciklus. 
-    // Így fenyegetőbb, lassan fortyogó hatást kelt.
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 6000),
-    )..repeat();
+    _controller = AnimationController(vsync: this, duration: const Duration(seconds: 5))..repeat();
   }
 
   @override
@@ -31,96 +26,56 @@ class _BadPulsingSphereState extends State<BadPulsingSphere> with SingleTickerPr
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 250,
-      height: 250,
+      width: 280, height: 280,
       child: AnimatedBuilder(
         animation: _controller,
-        builder: (context, child) {
-          return CustomPaint(
-            painter: _MeltingVolatilePainter(
-              animationValue: _controller.value,
-            ),
-          );
-        },
+        builder: (context, child) => CustomPaint(painter: _DarkPlasmaPainter(animationValue: _controller.value)),
       ),
     );
   }
 }
 
-class _MeltingVolatilePainter extends CustomPainter {
+class _DarkPlasmaPainter extends CustomPainter {
   final double animationValue;
-  _MeltingVolatilePainter({required this.animationValue});
-
-  double _triangleWave(double t) => math.asin(math.sin(t)) / (math.pi / 2);
+  _DarkPlasmaPainter({required this.animationValue});
 
   @override
   void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
     final baseRadius = size.width / 2.6;
     final time = animationValue * 2 * math.pi;
 
-    // A középpont rángatózása (a lassabb tempó miatt ez is lomhább lesz)
-    final twitchX = math.sin(time * 17) * 5;
-    final twitchY = math.cos(time * 19) * 5;
-    final center = Offset(size.width / 2 + twitchX, size.height / 2 + twitchY);
-
-    final burgundyColor = const Color(0xFF800020);
-
-    // INVERTÁLT FADE: Fehér mag, intenzív burgundi perem, majd kifelé elhalványul
     final glowPaint = Paint()
       ..shader = RadialGradient(
-        colors: [
-          Colors.white.withValues(alpha: 0.65),
-          burgundyColor.withValues(alpha: 0.85),
-          Colors.transparent,
-        ],
-        stops: const [0.0, 0.75, 1.0],
-      ).createShader(Rect.fromCircle(center: center, radius: baseRadius + 15));
-    
-    canvas.drawCircle(center, baseRadius + 15, glowPaint);
+        colors: [const Color(0xFF3E000F), const Color(0xFF800020).withValues(alpha: 0.7), Colors.transparent],
+        stops: const [0.3, 0.7, 1.0],
+      ).createShader(Rect.fromCircle(center: center, radius: baseRadius + 20));
+    canvas.drawCircle(center, baseRadius + 20, glowPaint);
 
-    void drawMeltingWave(Color color, double spikes, double speed, double amp, double phase, double strokeWidth, bool isJagged) {
-      final paint = Paint()
-        ..color = color
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = strokeWidth
-        ..isAntiAlias = true;
-
+    void drawDarkWave(Color color, double freq, double amp, double phase, double strokeWidth) {
+      final paint = Paint()..color = color..style = PaintingStyle.stroke..strokeWidth = strokeWidth..isAntiAlias = true;
       final path = Path();
-      const points = 160;
-
+      const points = 100;
       for (int i = 0; i <= points; i++) {
         final angle = (i / points) * 2 * math.pi;
-        
-        final asymmetry = math.sin(angle * 1.2 + time * 4) * 20 + 
-                          math.cos(angle * 2.2 - time * 5) * 15;
-        
-        double waveEffect = 0;
-        if (isJagged) {
-          final dynamicFreq = spikes + math.sin(angle * 2 + time * 4) * 3;
-          waveEffect = _triangleWave(angle * dynamicFreq - time * speed + phase) * amp;
-        }
-
-        final jitter = math.sin(angle * 50 + time * 40) * 4;
-        final r = baseRadius + asymmetry + waveEffect + jitter;
-        
+        // Aszimmetrikus, fortyogó mozgás
+        final offset = math.sin(angle * freq - time * 1.5 + phase) * amp + math.sin(angle * 7 + time) * (amp*0.3);
+        final r = baseRadius + offset;
         final x = center.dx + r * math.cos(angle);
         final y = center.dy + r * math.sin(angle);
-
         if (i == 0) {
           path.moveTo(x, y);
         } else {
           path.lineTo(x, y);
-         }
+        }
       }
       canvas.drawPath(path, paint);
     }
 
-    // Fekete "széteső" alapvonal
-    drawMeltingWave(Colors.black.withValues(alpha: 0.8), 5, 2, 8, 0, 4.0, true);
-drawMeltingWave(burgundyColor.withValues(alpha: 0.9), 13, 10, 25, math.pi / 4, 2.5, true);
-drawMeltingWave(const Color(0xFF3B0B0B).withValues(alpha: 0.8), 18, -12, 15, math.pi, 2.0, true);
+    drawDarkWave(Colors.black.withValues(alpha: 0.6), 4, 12, 0, 4.0);
+    drawDarkWave(const Color(0xFFC62828).withValues(alpha: 0.8), 3, 15, math.pi, 2.5);
+    drawDarkWave(const Color(0xFFFF5252).withValues(alpha: 0.5), 5, 8, math.pi/2, 1.5);
   }
-
   @override
-  bool shouldRepaint(covariant _MeltingVolatilePainter oldDelegate) => true;
+  bool shouldRepaint(covariant _DarkPlasmaPainter oldDelegate) => true;
 }

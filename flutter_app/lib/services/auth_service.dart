@@ -24,13 +24,25 @@ class AuthService {
   Future<Map<String, dynamic>> login({
     required String email,
     required String password,
+    bool rememberMe = false, // ÚJ: Checkbox paraméter (alapértelmezetten false)
   }) async {
+
     final res = await http.post(
       Uri.parse('${ApiConfig.baseUrl}/auth/login'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'email': email, 'password': password}),
     );
-    return _handleResponse(res);
+    
+    // 1. Feldolgozzuk a választ
+    final responseData = _handleResponse(res);
+
+    // 2. ÚJ LOGIKA: Ha a user kérte a mentést, és a szerver küldött tokent
+    if (rememberMe && responseData.containsKey('token')) {
+      await saveToken(responseData['token']);
+    }
+
+    // 3. Visszaadjuk a teljes választ az AuthProvider-nek
+    return responseData;
   }
 
   // ── Token persistence ──────────────────────────────────

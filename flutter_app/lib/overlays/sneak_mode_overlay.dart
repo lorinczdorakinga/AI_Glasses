@@ -1,19 +1,13 @@
 import 'package:flutter/material.dart';
 import '../components/sneak_time_choose.dart';
 
-// Ezt a függvényt kell meghívni a Dashboard-ról
 void showSneakModeDialog(BuildContext context, {String glassesName = "Vision_8635"}) {
-  showDialog(
-    context: context,
-    builder: (context) => _SneakModeDialogContent(glassesName: glassesName),
-  );
+  showDialog(context: context, builder: (context) => _SneakModeDialogContent(glassesName: glassesName));
 }
 
 class _SneakModeDialogContent extends StatefulWidget {
   final String glassesName;
-
   const _SneakModeDialogContent({required this.glassesName});
-
   @override
   State<_SneakModeDialogContent> createState() => _SneakModeDialogContentState();
 }
@@ -25,86 +19,53 @@ class _SneakModeDialogContentState extends State<_SneakModeDialogContent> {
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: Colors.black, width: 2), // A rajzod szerinti keret
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      backgroundColor: Colors.white,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24),
       child: Padding(
-        padding: const EdgeInsets.all(20.0),
+        padding: const EdgeInsets.all(24.0),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Fejléc (Cím és X gomb)
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Expanded(
-                  child: Text(
-                    'Sneak mode',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: () => Navigator.pop(context),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                ),
+                const Text('Sneak Mode', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black87)),
+                IconButton(icon: const Icon(Icons.close, color: Colors.grey), onPressed: () => Navigator.pop(context), padding: EdgeInsets.zero, constraints: const BoxConstraints()),
               ],
             ),
-            const SizedBox(height: 30),
-
-            // Tartalom (Attól függően, melyik oldalon vagyunk)
-            if (!_isTimeSelectionState)
-              _buildInfoView()
-            else
-              _buildTimeSelectionView(),
-
-            const SizedBox(height: 30),
-
-            // Alsó gombok (Set sneak mode & Back)
-            OutlinedButton(
-              onPressed: () {
-                if (!_isTimeSelectionState) {
-                  // Átlépés a második állapotba
-                  setState(() {
-                    _isTimeSelectionState = true;
-                  });
-                } else {
-                  // Véglegesítés a második oldalon
-                  if (_selectedDuration != null) {
-                    debugPrint('Sneak mode activated for: ${_selectedDuration!.inHours} hours');
-                    // IDE JÖN A SNEAK MODE AKTIVÁLÁSA A BACKEND/HARDVER FELÉ
+            const SizedBox(height: 24),
+            if (!_isTimeSelectionState) _buildInfoView() else _buildTimeSelectionView(),
+            const SizedBox(height: 32),
+            SizedBox(
+              width: double.infinity,
+              height: 54,
+              child: ElevatedButton(
+                onPressed: () {
+                  if (!_isTimeSelectionState) {
+                    setState(() => _isTimeSelectionState = true);
+                  } else if (_selectedDuration != null) {
                     Navigator.pop(context); 
                   }
-                }
-              },
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Colors.brown, width: 2), // Rajz szerinti szín
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 12),
-              ),
-              child: const Text(
-                'Set sneak mode',
-                style: TextStyle(fontSize: 18, color: Colors.black, fontWeight: FontWeight.w600),
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.teal.shade600,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  elevation: 0,
+                ),
+                child: const Text('Set sneak mode', style: TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold)),
               ),
             ),
-            
+            const SizedBox(height: 12),
             TextButton(
               onPressed: () {
                 if (_isTimeSelectionState) {
-                  // Vissza az első állapotba
-                  setState(() {
-                    _isTimeSelectionState = false;
-                    _selectedDuration = null;
-                  });
+                  setState(() { _isTimeSelectionState = false; _selectedDuration = null; });
                 } else {
-                  // Ablak bezárása
                   Navigator.pop(context);
                 }
               },
-              child: const Text('back', style: TextStyle(fontSize: 18, color: Colors.black54)),
+              child: const Text('Back', style: TextStyle(fontSize: 16, color: Colors.grey, fontWeight: FontWeight.bold)),
             ),
           ],
         ),
@@ -112,86 +73,78 @@ class _SneakModeDialogContentState extends State<_SneakModeDialogContent> {
     );
   }
 
-  // Az első (Info) nézet
   Widget _buildInfoView() {
-    return Text(
-      'If you turn this on, your\n*${widget.glassesName}*\nwon\'t track you.',
-      textAlign: TextAlign.center,
-      style: const TextStyle(fontSize: 20),
+    return Column(
+      children: [
+        Icon(Icons.visibility_off, size: 64, color: Colors.teal.shade300),
+        const SizedBox(height: 16),
+        RichText(
+          textAlign: TextAlign.center,
+          text: TextSpan(
+            style: const TextStyle(fontSize: 18, color: Colors.black87, height: 1.4),
+            children: [
+              const TextSpan(text: 'If you turn this on, your\n'),
+              TextSpan(text: widget.glassesName, style: TextStyle(fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
+              const TextSpan(text: '\nwon\'t track you.'),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
-  // A második (Időválasztó) nézet
   Widget _buildTimeSelectionView() {
     return Column(
       children: [
-        _buildTimeOption('For 1h', const Duration(hours: 1)),
-        _buildTimeOption('For 6h', const Duration(hours: 6)),
-        _buildTimeOption('For 24h', const Duration(hours: 24)),
+        _buildTimeOption('For 1 Hour', const Duration(hours: 1)),
+        _buildTimeOption('For 6 Hours', const Duration(hours: 6)),
+        _buildTimeOption('For 24 Hours', const Duration(hours: 24)),
         _buildCustomTimeOption(),
       ],
     );
   }
 
-  // Segédfüggvény az opciókhoz
   Widget _buildTimeOption(String text, Duration duration) {
     final isSelected = _selectedDuration == duration;
     return Padding(
       padding: const EdgeInsets.only(bottom: 12.0),
       child: InkWell(
-        onTap: () {
-          setState(() {
-            _selectedDuration = duration;
-          });
-        },
-        child: Container(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => setState(() => _selectedDuration = duration),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
           width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 12),
+          padding: const EdgeInsets.symmetric(vertical: 16),
           decoration: BoxDecoration(
-            border: Border.all(color: isSelected ? Colors.teal : Colors.black, width: isSelected ? 2.5 : 1.5),
-            color: isSelected ? Colors.teal.withValues(alpha: 0.1) : Colors.transparent,
+            border: Border.all(color: isSelected ? Colors.teal : Colors.grey.shade300, width: isSelected ? 2 : 1),
+            borderRadius: BorderRadius.circular(12),
+            color: isSelected ? Colors.teal.shade50 : Colors.white,
           ),
-          child: Text(
-            text,
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 18, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal),
-          ),
+          child: Text(text, textAlign: TextAlign.center, style: TextStyle(fontSize: 16, color: isSelected ? Colors.teal.shade800 : Colors.black87, fontWeight: isSelected ? FontWeight.bold : FontWeight.w500)),
         ),
       ),
     );
   }
 
-  // A Custom opció gombja
   Widget _buildCustomTimeOption() {
-    // Ha olyan duration van kiválasztva, ami nem az alap 3 (1, 6, 24), akkor a Custom aktív
-    final isCustomSelected = _selectedDuration != null && 
-        ![1, 6, 24].contains(_selectedDuration!.inHours);
-        
-    final displayText = isCustomSelected 
-        ? 'Custom (${_selectedDuration!.inHours}h)' 
-        : 'Custom';
-
+    final isCustomSelected = _selectedDuration != null && ![1, 6, 24].contains(_selectedDuration!.inHours);
+    final displayText = isCustomSelected ? 'Custom (${_selectedDuration!.inHours}h)' : 'Custom';
     return InkWell(
+      borderRadius: BorderRadius.circular(12),
       onTap: () async {
         final chosenDuration = await showCustomSneakTimePicker(context);
-        if (chosenDuration != null) {
-          setState(() {
-            _selectedDuration = chosenDuration;
-          });
-        }
+        if (chosenDuration != null) setState(() => _selectedDuration = chosenDuration);
       },
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 12),
+        padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
-          border: Border.all(color: isCustomSelected ? Colors.deepPurple : Colors.black, width: isCustomSelected ? 2.5 : 1.5),
-          color: isCustomSelected ? Colors.deepPurple.withValues(alpha: (0.1)) : Colors.transparent,
+          border: Border.all(color: isCustomSelected ? Colors.teal : Colors.grey.shade300, width: isCustomSelected ? 2 : 1),
+          borderRadius: BorderRadius.circular(12),
+          color: isCustomSelected ? Colors.teal.shade50 : Colors.white,
         ),
-        child: Text(
-          displayText,
-          textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 18, fontWeight: isCustomSelected ? FontWeight.bold : FontWeight.normal),
-        ),
+        child: Text(displayText, textAlign: TextAlign.center, style: TextStyle(fontSize: 16, color: isCustomSelected ? Colors.teal.shade800 : Colors.black87, fontWeight: isCustomSelected ? FontWeight.bold : FontWeight.w500)),
       ),
     );
   }

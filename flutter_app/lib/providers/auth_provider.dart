@@ -22,11 +22,19 @@ class AuthProvider extends ChangeNotifier {
     });
   }
 
-  Future<bool> login(String email, String password) async {
+  // ÚJ: Bekerült a rememberMe paraméter
+  Future<bool> login(String email, String password, {bool rememberMe = false}) async {
     return _run(() async {
-      final data  = await _service.login(email: email, password: password);
-      _user       = UserModel.fromJson(data['user']);
-      await _service.saveToken(data['token']);
+      // Továbbadjuk a paramétert az AuthService-nek
+      final data = await _service.login(
+        email: email, 
+        password: password, 
+        rememberMe: rememberMe, 
+      );
+      _user = UserModel.fromJson(data['user']);
+      
+      // FONTOS: Kivettük a korábbi 'await _service.saveToken(data['token']);' sort!
+      // Az AuthService-ed már önállóan kezeli a token mentését a rememberMe alapján.
     });
   }
 
