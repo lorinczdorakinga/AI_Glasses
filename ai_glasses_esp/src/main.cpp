@@ -2,7 +2,7 @@
 #include "NimBLEDevice.h"
 #include "esp_camera.h"
 #include <SPI.h>
-#include <SD.h>
+#include <SdFat.h>
 
 //Config File
 #include "config.h"
@@ -37,6 +37,11 @@ volatile uint32_t requested_image_index = 0;
 volatile bool goToSleep = false;
 volatile bool reset = false;
 volatile uint32_t sleepTimeS = 0;
+
+//variables for pairing mode
+volatile bool pairing_mode  = false;  // true when no bonds exist
+volatile bool forget_bonds  = false;  // set by 'F' command
+volatile bool peer_was_bonded = false; // snapshotted at onConnect
 
 //BLE Callbacks
 class ImgControlCallbacks : public NimBLECharacteristicCallbacks {
@@ -88,6 +93,10 @@ class CmdCallbacks : public NimBLECharacteristicCallbacks {
         if( val.length() >= 1 && val.data()[0] == 'R'){
             reset = true;
         }
+        if (val.length() >= 1 && val.data()[0] == 'F') {
+            Serial.println("CMD: Forget all bonds requested");
+            forget_bonds = true;
+        }
     }
 };
 
@@ -98,11 +107,24 @@ class ServerCallbacks : public NimBLEServerCallbacks {
         current_conn_handle = connInfo.getConnHandle();
         Serial.print("Connected (not yet authenticated): ");
         Serial.println(connInfo.getAddress().toString().c_str());
+
+        peer_was_bonded = NimBLEDevice::isBonded(connInfo.getAddress());
     }
 
     void onDisconnect(NimBLEServer* pServer, NimBLEConnInfo& connInfo, int reason) override {
         client_connected = false;
+        data_request = false;
         Serial.printf("Disconnected, reason: %d\n", reason);
+
+        if (reason == BLE_ERR_AUTH_FAIL) {
+            Serial.println("Auth failure — peer likely forgot bond. Deleting stale bond.");
+            NimBLEDevice::deleteBond(connInfo.getAddress());
+            if (NimBLEDevice::getNumBonds() == 0) {
+                pairing_mode = true;
+                Serial.println("No bonds remain — entering PAIRING MODE");
+            }
+        }
+
         NimBLEDevice::startAdvertising();
     }
 
@@ -270,22 +292,25 @@ camera_fb_t * framebuffer;
 
 #pragma region SD
 
-
+SdFs SD;
 bool exists_SD = 0;
 
 uint32_t findLatestIndex() {
     uint32_t maxIndex = 0;
-    File root = SD.open("/");
+    FsFile root = SD.open("/");
 
     if(!root || !root.isDirectory()) {
         Serial.println("Failed to open root");
         return 0;
     }
 
-    File file = root.openNextFile();
+    char cpath[32];
+    FsFile file = root.openNextFile();
     while(file) {
         if(!file.isDirectory()) {
-            String name = file.name();
+            size_t len = file.getName(cpath, 32);
+            String name(cpath, len);
+            // String name = file.getName();
             name = "/" + name;
             if(name.endsWith(".jpg")) {
                 int slash = name.lastIndexOf('/');
@@ -308,16 +333,17 @@ uint32_t findLatestIndex() {
 }
 
 void deleteAllImages() {
-
-    File root = SD.open("/");
+    char cpath[32];
+    FsFile root = SD.open("/");
     if(!root || !root.isDirectory()) {
         Serial.println("Failed to open SD root");
         return;
     }
 
-    File file = root.openNextFile();
+    FsFile file = root.openNextFile();
     while(file) {
-        String path = file.name();
+        size_t len = file.getName(cpath, 32);
+        String path(cpath, len);
         file.close();
         path = "/" + path;
         Serial.print("Deleting ");
@@ -443,6 +469,15 @@ void setup() {
 
     pServer->start();
 
+    int bondCount = NimBLEDevice::getNumBonds();
+    if (bondCount == 0) {
+        pairing_mode = true;
+        Serial.println("No bonds found — starting in PAIRING MODE");
+    } else {
+        pairing_mode = false;
+        Serial.printf("%d bond(s) found — pairing locked, waiting for known device\n", bondCount);
+    }
+
     pImgControl->setValue("Hello BLE");
     pImgStatus->setValue(0);
     pImgData->setValue(0);
@@ -453,18 +488,21 @@ void setup() {
     pAdvertising->start();
 
     Serial.println("DONE");
+    ///SD setup:
+    Serial.println("Initializing SD:");
+    exists_SD = SD.begin(SD_CS);
+    Serial.println(exists_SD ? "Success" : "Failed" );
     
+    
+    delay(100);
+
     ///Camera setup:
-    
     Serial.println("Initializing Camera");
     if(esp_camera_init( &camera_config) != ESP_OK){ // this works so far
         Serial.println("Camera init error!");
     }
     delay(5000);
     
-    ///SD setup:
-    Serial.println("Initializing SD:");
-    exists_SD = SD.begin(21);
     // if(exists_SD){
     //     latest_index = findLatestIndex();
     // }
@@ -483,8 +521,8 @@ void loop(){
     static int send_attempts = 0;
     char imgPath[32];
 
-    if(reset){
-        Serial.println("Received RESET");
+    if(reset || (latest_index + 1 > MAX_INDEX) ){
+        Serial.println("Received RESET or reached index MAX_INDEX");
 
         pServer->disconnect(current_conn_handle);
         delay(200);
@@ -501,6 +539,26 @@ void loop(){
         esp_camera_deinit();
         esp_sleep_enable_timer_wakeup(toMicros(sleepTimeS));
         esp_deep_sleep_start();
+    }
+
+    if (forget_bonds) {
+        Serial.println("Forgetting all bonds...");
+        pServer->disconnect(current_conn_handle);
+        delay(200);
+        NimBLEDevice::deleteAllBonds();
+        pairing_mode   = true;
+        forget_bonds   = false;
+        client_connected = false;
+        Serial.println("All bonds deleted — entering PAIRING MODE");
+        // No restart needed; advertising continues from onDisconnect
+    }
+
+    if(pairing_mode && !client_connected) {
+        delay(100);
+        // if(start_time - micros() > toMicros(PAIRING_TIMEOUT)){
+
+        // }
+        return;
     }
 
     switch(img_state){
@@ -540,12 +598,17 @@ void loop(){
         }
         
         case(SEND) : {
+            delay(50);
 
             if( requested_image_index - 1 < latest_index && data_request ){ //delete previous image: if next is already requesting => there was no error
                 Serial.println("Deleting previous");
                 sprintf(imgPath, "/%04d.jpg", requested_image_index - 1);
+                // sdBeginTransaction();
                 if(SD.exists(imgPath)) {
-                    SD.remove(imgPath);
+                    bool removed = SD.remove(imgPath);
+                    Serial.println(removed ? "removed successfully" : "unsuccesful remove");
+                } else {
+                    Serial.println("Couldnt find file to remove");
                 }
             }
 
@@ -553,12 +616,20 @@ void loop(){
                 Serial.println("Sending from SD");
                 //char imgPath[32];
                 sprintf(imgPath, "/%04d.jpg", requested_image_index);
+                // sdBeginTransaction();
                 if(!SD.exists(imgPath)){
+                    Serial.println("Couldnt find file");
                     sendError(requested_image_index, 0);
                     data_request = false;
                     break;
                 }
-                fs::File file = SD.open(imgPath, "r", false);
+                FsFile file = SD.open(imgPath, FILE_READ);
+                if (!file) {
+                    Serial.println("Couldnt open file");
+                    sendError(requested_image_index, 2);
+                    data_request = false;
+                    break;
+                }   
                 int fileSize = file.size();
                 uint8_t* image;
                 image = (uint8_t *) ps_malloc(fileSize);
@@ -569,10 +640,11 @@ void loop(){
                     break;
                 }
                 file.read(image, fileSize); // loads whole image into buffer, not too efficient, but works for now
+                file.close();
                 sendImage(image, fileSize, requested_image_index);
                 data_request = false;
                 free(image);
-                file.close();
+                
                 
                 break;
             }
@@ -597,11 +669,16 @@ void loop(){
         }
         case(SAVE_TO_SD):{
             Serial.println("Saving to SD Card");
-            //TODO: implement saving here
+            delay(50);
 
             //char imgPath[10];
             sprintf(imgPath, "/%04d.jpg", latest_index);
-            fs::File file = SD.open(imgPath, "w", true);
+            FsFile file = SD.open(imgPath, FILE_WRITE);
+            if (!file) {
+                Serial.println("Failed to open file for writing");
+                img_state = GO_SLEEP;
+                break;
+            }
             file.write(framebuffer->buf, framebuffer->len);
             file.close();
 
