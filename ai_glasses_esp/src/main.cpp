@@ -40,10 +40,12 @@ volatile uint32_t sleepTimeS = 0;
 
 //variables for pairing mode
 volatile bool pairing_mode  = false;  // true when no bonds exist
-volatile bool forget_bonds  = false;  // set by 'F' command
+volatile bool forget_bonds  = false;  // set by 'F' command or by holding PAIR button 
 volatile bool peer_was_bonded = false; // snapshotted at onConnect
 
+
 //BLE Callbacks
+#pragma region BLE_CallBacks
 class ImgControlCallbacks : public NimBLECharacteristicCallbacks {
     void onWrite(NimBLECharacteristic* pCharacteristic, NimBLEConnInfo& connInfo) override {
         NimBLEAttValue val = pCharacteristic->getValue();
@@ -157,6 +159,9 @@ class ServerCallbacks : public NimBLEServerCallbacks {
     }
 };
 
+#pragma endregion BLE_CallBacks
+
+#pragma region BLE_Send____
 bool sendImage(uint8_t* image, uint size , uint index){
     uint8_t status[12];
     //uint8_t message[BUFFERSIZE + 2];
@@ -193,7 +198,7 @@ bool sendImage(uint8_t* image, uint size , uint index){
         pImgData->setValue(packet, msgsize + 2 );
         pImgData->notify();
         
-        delay(20); //10 ms works with my windows pc w/ intel AX200, receiving using python
+        delay(CHUNK_TIME); //10 ms works with my windows pc w/ intel AX200, receiving using python
     }
 
     if (currentChunk == totalChunks){
@@ -249,6 +254,8 @@ void sendBattery(uint8_t batteryPercent){
     pBatChar->notify();
 }
 
+#pragma endregion BLE_Send____
+
 #pragma endregion BLE
 
 
@@ -283,7 +290,6 @@ static camera_config_t camera_config = {
         .grab_mode      = CAMERA_GRAB_LATEST
     };
 
-//bool took_picture=false;
 camera_fb_t * framebuffer;
 
 
@@ -295,6 +301,8 @@ camera_fb_t * framebuffer;
 SdFs SD;
 bool exists_SD = 0;
 
+
+//i dont like these functions, but they work:
 uint32_t findLatestIndex() {
     uint32_t maxIndex = 0;
     FsFile root = SD.open("/");
@@ -362,6 +370,8 @@ void deleteAllImages() {
 #pragma endregion SD
 
 #pragma region BATTERY
+
+//Magic voltage % calculator:
 const float LIPO_CURVE[][2] = {
     {4.20, 100},
     {4.15,  95},
@@ -417,12 +427,26 @@ uint8_t getBattery(){
 
 
 #pragma region MAIN
-//some time things, in s
 
+//utility s -> us
 inline unsigned long toMicros(unsigned long sec){ 
     return sec * 1000000UL;
 }
 
+//Forget pairing button interrupt logic
+volatile uint32_t btn_press_ms = 0;
+volatile bool button_down = false;
+
+void IRAM_ATTR onForgetBtnChange() {
+    if (digitalRead(PAIR_PIN) == HIGH) {
+        if (!button_down) {                          // latch only the first rising edge
+            btn_press_ms = (uint32_t)millis();    // fine here: just a timestamp latch
+            button_down  = true;
+        }
+    } else {
+        button_down = false;                         // any falling edge clears the hold
+    }
+}
 unsigned long start_time;
 
 enum ImgState{
@@ -478,9 +502,9 @@ void setup() {
         Serial.printf("%d bond(s) found — pairing locked, waiting for known device\n", bondCount);
     }
 
-    pImgControl->setValue("Hello BLE");
-    pImgStatus->setValue(0);
-    pImgData->setValue(0);
+    pImgControl->setValue(0);
+    pImgStatus-> setValue(0);
+    pImgData->   setValue(0);
     
     NimBLEAdvertising *pAdvertising = NimBLEDevice::getAdvertising();
     pAdvertising->addServiceUUID(IMG_SERVICE_UUID); // advertise the UUID of our service
@@ -493,7 +517,6 @@ void setup() {
     exists_SD = SD.begin(SD_CS);
     Serial.println(exists_SD ? "Success" : "Failed" );
     
-    
     delay(100);
 
     ///Camera setup:
@@ -503,15 +526,19 @@ void setup() {
     }
     delay(5000);
     
-    // if(exists_SD){
-    //     latest_index = findLatestIndex();
-    // }
 
     //Battery pin setup
     analogReadResolution(12);      // 12-bit = 0–4095
     analogSetAttenuation(ADC_11db);
+
+
+
+    pinMode(PAIR_PIN, INPUT_PULLDOWN);   // no internal pull needed; you have an external pull-down
+    attachInterrupt(digitalPinToInterrupt(PAIR_PIN), onForgetBtnChange, CHANGE);
     
 }
+
+#pragma region loop
 
 uint64_t sendStartTime = 0;
 
@@ -521,6 +548,12 @@ void loop(){
     static int send_attempts = 0;
     char imgPath[32];
 
+    // ── Hold-to-forget check (done here where millis() is reliable) ──────────────
+    if (button_down && ((uint32_t)millis() - btn_press_ms >= FORGET_HOLD_MS)) {
+        forget_bonds = true;
+        button_down = false;   // prevent repeated triggering while still held
+    }
+    //todo: clean up these ifs
     if(reset || (latest_index + 1 > MAX_INDEX) ){
         Serial.println("Received RESET or reached index MAX_INDEX");
 
@@ -553,11 +586,15 @@ void loop(){
         // No restart needed; advertising continues from onDisconnect
     }
 
-    if(pairing_mode && !client_connected) {
-        delay(100);
-        // if(start_time - micros() > toMicros(PAIRING_TIMEOUT)){
-
-        // }
+    if(pairing_mode && !client_connected ) {
+        if(micros() - start_time > toMicros(PAIRING_TIMEOUT)){
+            // esp_sleep_enable_ext0_wakeup
+            Serial.println("Pairing mode timed out, going to sleep");
+            gpio_pulldown_en((gpio_num_t) PAIR_PIN);
+            esp_sleep_enable_ext1_wakeup(1ULL << PAIR_PIN, ESP_EXT1_WAKEUP_ANY_HIGH);
+            esp_deep_sleep_start();
+            delay(DEBOUNCE_MS);
+        }
         return;
     }
 
@@ -567,7 +604,7 @@ void loop(){
             Serial.println("taking picture");
             framebuffer = esp_camera_fb_get();
             
-            capture_attempts++;
+            capture_attempts++; // todo: deal with capture_attempts logic. -> ex: 3 retries
             
             if(!framebuffer){
                 Serial.print("couldnt take picture, attempt: ");
@@ -642,14 +679,16 @@ void loop(){
                 file.read(image, fileSize); // loads whole image into buffer, not too efficient, but works for now
                 file.close();
                 sendImage(image, fileSize, requested_image_index);
-                data_request = false;
                 free(image);
+
+                data_request = false;
                 
-                
+
                 break;
             }
             if( requested_image_index == latest_index && data_request){
                 sendImage(framebuffer->buf, framebuffer->len, requested_image_index);
+                data_request = false;
                 break;
             }
             if( requested_image_index > latest_index && data_request) {
@@ -660,7 +699,7 @@ void loop(){
                 }
                 break;
             }
-            if ( !client_connected ||  ( micros() - sendStartTime > toMicros(REQUEST_TIMEOUT) )  ){
+            if ( !client_connected ||  ( micros() - sendStartTime > toMicros(REQUEST_TIMEOUT) )  ){ // todo: sendStartTime should be more like: lastSuccesfulSend, and logic from there
                 img_state = WAIT_FOR_CONNECTION;
                 sendError(latest_index, 5); //"yo something timed out!"
             }
@@ -669,9 +708,7 @@ void loop(){
         }
         case(SAVE_TO_SD):{
             Serial.println("Saving to SD Card");
-            delay(50);
-
-            //char imgPath[10];
+            
             sprintf(imgPath, "/%04d.jpg", latest_index);
             FsFile file = SD.open(imgPath, FILE_WRITE);
             if (!file) {
@@ -680,6 +717,7 @@ void loop(){
                 break;
             }
             file.write(framebuffer->buf, framebuffer->len);
+            file.sync(); // force cache to be written to Card. should prevent corruption, tho that has not been an issue
             file.close();
 
             img_state = GO_SLEEP;
@@ -690,7 +728,9 @@ void loop(){
             esp_camera_fb_return(framebuffer);
             delay(50);
 
-            //digitalWrite(LED_BUILTIN, LOW);
+            if(button_down){ // stop from shutting down when trying to enter pairing mode
+                break;
+            }
             unsigned long now = micros();
             if( ( now - start_time ) < toMicros(TIME_TO_SLEEP) ) { // go to sleep for a non-negative amount of time
                 uint64_t timeToSleep = toMicros(TIME_TO_SLEEP) - ( now - start_time );
@@ -709,5 +749,6 @@ void loop(){
         }
     }
 }
+#pragma endregion loop
 
 #pragma endregion MAIN

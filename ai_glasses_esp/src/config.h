@@ -17,15 +17,21 @@
 #define MAX_INDEX 9999
 
 // Timeouts:
-#define BLE_TIMEOUT     (10ULL)     //in s
+#define BLE_TIMEOUT     (15ULL)     //in s
 #define PAIRING_TIMEOUT (200ULL)     //in s
-#define TIME_TO_SLEEP   (20ULL)   // in s, should be 60 for final product
-#define REQUEST_TIMEOUT (2ULL) //timeout for img_state = SEND, if no commands are received for x amount of time, sends error, to "wake up" the client
+#define TIME_TO_SLEEP   (60ULL)     // in s, should be 60 for final product
+#define REQUEST_TIMEOUT (2ULL)      //timeout for img_state = SEND, if no commands are received for x amount of time, sends error, to "wake up" the client
 
+#define CHUNK_TIME (100)     // time between chunks in sendImage(), kind of  an inverse of bitreate (ms)
 
 #define BAT_PIN D0
-#define VMAX 3.3f
-#define ADC_RESOLUTION 4095
-#define BAT_SAMPLES 16
+#define VMAX    (3.3f)
+#define ADC_RESOLUTION  (4095)
+#define BAT_SAMPLES     (16)
 
-#define SD_CS 21 //dont change this: it is specific to this esp32s3 model
+#define SD_CS (21) //dont change this: it is specific to this esp32s3 model
+
+//PAIR button:
+#define PAIR_PIN D5
+#define FORGET_HOLD_MS  (1000UL)
+#define DEBOUNCE_MS     (50UL)
