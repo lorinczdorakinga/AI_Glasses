@@ -7,18 +7,22 @@ import '../pages/bottom_menu/nutrition_page.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
-  @override State<HomeScreen> createState() => _HomeScreenState();
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
 
-  final List<Widget> _pages = const [
-    DashboardPage(),
-    MyGlassesPage(),
-    ProgressPage(),
-    NutritionPage(),
-    UserSettingsPage(),
+  // const eltávolítva — MyGlassesPage context.watch()-ot használ,
+  // ezért nem lehet konstans lista eleme
+  final List<Widget> _pages = [
+    const DashboardPage(),
+    const MyGlassesPage(),
+    const ProgressPage(),
+    const NutritionPage(),
+    const UserSettingsPage(),
   ];
 
   void _onItemTapped(int index) {
@@ -35,10 +39,7 @@ class _HomeScreenState extends State<HomeScreen> {
           BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Home'),
           BottomNavigationBarItem(icon: Icon(Icons.visibility), label: 'Glasses'),
           BottomNavigationBarItem(icon: Icon(Icons.radar), label: 'Progress'),
-          BottomNavigationBarItem(
-  icon: Icon(Icons.restaurant_menu),
-  label: 'Nutrition',
-),
+          BottomNavigationBarItem(icon: Icon(Icons.restaurant_menu), label: 'Nutrition'),
           BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'Profile'),
         ],
         currentIndex: _selectedIndex,

@@ -4,16 +4,26 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'providers/auth_provider.dart';
 import 'screens/login_screen.dart';
-import 'providers/ble_provider.dart'; // A Bluetooth provider importja
+import 'providers/ble_provider.dart';
+import 'providers/data_provider.dart'; // NEW
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Create both providers up front so we can wire them together.
+  final bleProvider  = BleProvider();
+  final dataProvider = DataProvider();
+
+  // Inject DataProvider into BleImageService so it can call onImageUploaded()
+  // after each successful camera image upload.
+  bleProvider.init(dataProvider);
+
   runApp(
-    // JAVÍTVA: MultiProvider-t használunk, hogy végtelen számú providert felvehessünk
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
-        ChangeNotifierProvider(create: (_) => BleProvider()), // Itt indítjuk el a BLE Providert!
+        ChangeNotifierProvider.value(value: bleProvider),
+        ChangeNotifierProvider.value(value: dataProvider), // NEW
       ],
       child: const MyApp(),
     ),
@@ -23,10 +33,9 @@ void main() {
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  // Ez a függvény ellenőrzi, hogy van-e elmentett token
   Future<bool> _checkSavedToken() async {
     final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('auth_token'); // Ezt a kulcsot használtad az AuthService-ben
+    final token = prefs.getString('auth_token');
     return token != null && token.isNotEmpty;
   }
 
@@ -36,25 +45,15 @@ class MyApp extends StatelessWidget {
       title: 'Productivity App',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(colorSchemeSeed: Colors.indigo, useMaterial3: true),
-      
-      // FutureBuilder-t használunk, hogy megvárjuk a cache olvasását
       home: FutureBuilder<bool>(
         future: _checkSavedToken(),
         builder: (context, snapshot) {
-          // Amíg olvassa a memóriát (ez nagyon gyors), mutathatunk egy töltőt
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Scaffold(
               body: Center(child: CircularProgressIndicator(color: Colors.indigo)),
             );
           }
-          
-          // Ha van token (true), irány a Dashboard. Ha nincs, irány a Login!
-          final hasToken = snapshot.data ?? false;
-          if (hasToken) {
-            return const HomeScreen();
-          } else {
-            return const LoginScreen();
-          }
+          return (snapshot.data ?? false) ? const HomeScreen() : const LoginScreen();
         },
       ),
     );

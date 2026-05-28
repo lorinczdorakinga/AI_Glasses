@@ -3,95 +3,115 @@ import 'dart:typed_data';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:io'; 
+import 'dart:io';
+
+// Import your DataProvider so we can trigger a refresh after each upload.
+// Adjust the path to match your actual project structure.
+import '../providers/data_provider.dart';
 
 class BleImageService {
-  final String targetDevicePrefix = ""; //MAJD AIGLS
+  final String targetDevicePrefix = "AIGLS";
 
-  // UUID-k pontosan a config.h alapján
   final Guid imgServiceUuid = Guid("e86fa43c-5ae8-4663-abb2-889f09cfb822");
   final Guid imgControlUuid = Guid("8a80c26e-404c-4436-8877-bc643a7194c9");
   final Guid imgStatusUuid  = Guid("13a56951-37c2-4517-98a6-353e7c5b299b");
   final Guid imgDataUuid    = Guid("8fcc7c0e-a4c0-4f56-abcd-fb61e137aa7a");
+
+  final Guid cmdServiceUuid = Guid("6d22fa7b-4f6c-4bd7-962c-a343c00060a1");
+  final Guid cmdBatUuid     = Guid("726530db-8845-4241-a10e-e26f20b095d6");
 
   BluetoothDevice? _device;
   BluetoothCharacteristic? _imgControl;
   BluetoothCharacteristic? _imgStatus;
   BluetoothCharacteristic? _imgData;
 
-  // Állapotváltozók a képösszerakáshoz
+  // ── NEW: injected reference to DataProvider ──────────────────────────────
+  // Set this once in BleProvider after creating the service:
+  //   bleService.dataProvider = context.read<DataProvider>();
+  DataProvider? dataProvider;
+
   int _nextIndexToRequest = 0;
   int _expectedChunks = 0;
   int _expectedBytes = 0;
   Uint8List? _imageBuffer;
   int _chunksReceived = 0;
 
-  // 1. Keresés indítása
-  Future<void> startScan() async {
-    if (FlutterBluePlus.isScanningNow) {
-      await FlutterBluePlus.stopScan();
+  // ── Battery ───────────────────────────────────────────────────────────────
+  // The camera sends battery as a single uint8 notify on CMD_BAT_UUID.
+  // We read it here and push it into DataProvider so MyGlassesPage can show it.
+  void _handleBattery(List<int> data) {
+    if (data.isEmpty) return;
+    final percent = data[0].clamp(0, 100);
+    if (dataProvider != null) {
+      dataProvider!.batteryPercent = percent;
+      dataProvider!.notifyListeners();
     }
+  }
+
+  // ── Scan ──────────────────────────────────────────────────────────────────
+
+  Future<void> startScan() async {
+    if (FlutterBluePlus.isScanningNow) await FlutterBluePlus.stopScan();
     await FlutterBluePlus.startScan(timeout: const Duration(seconds: 30));
   }
 
-  // 2. Keresés leállítása
-  Future<void> stopScan() async {
-    await FlutterBluePlus.stopScan();
-  }
+  Future<void> stopScan() async => FlutterBluePlus.stopScan();
 
   Stream<List<ScanResult>> get scanResults => FlutterBluePlus.scanResults;
 
-  // 3. Csatlakozás és a csatornák felfedezése
-  // 3. Csatlakozás és a csatornák felfedezése
+  // ── Connect ───────────────────────────────────────────────────────────────
+
   Future<bool> connectToDevice(BluetoothDevice device) async {
     try {
-      // 1. Csatlakozás autoConnect kikapcsolásával (hibaelkerülés)
-      await device.connect(license: License.free, autoConnect: false, mtu: null);
+      await device.connect(autoConnect: false, mtu: null, license: License.free);
       _device = device;
-      
-      // 2. MTU kérése CSAK Androidon (mert az iOS automatikusan csinálja)
+
       if (Platform.isAndroid) {
         try {
-          print("MTU növelésének kérése Androidon (512 bájt)...");
-          await device.requestMtu(512); 
-          await Future.delayed(const Duration(milliseconds: 500)); 
+          await device.requestMtu(512);
+          await Future.delayed(const Duration(milliseconds: 500));
         } catch (e) {
-          print("MTU egyeztetési hiba (nem blokkoló): $e");
+          print("MTU negotiation error (non-blocking): $e");
         }
       }
 
-      // ÚJ: Kiírjuk a végleges MTU-t, platformtól függetlenül (iOS-en is megmutatja az automata értéket!)
       final currentMtu = await device.mtu.first;
-      print("✅ Sikeres csatlakozás! Végleges MTU méret: $currentMtu bájt");
+      print("Connected. MTU: $currentMtu");
 
-      // 3. Megpróbáljuk betölteni, hogy hol tartottunk legutóbb a képekkel
       final prefs = await SharedPreferences.getInstance();
       _nextIndexToRequest = prefs.getInt('aigls_next_index') ?? 0;
 
-      // 4. Szolgáltatások felfedezése és feliratkozás
       await _discoverAndSubscribe();
       return true;
     } catch (e) {
-      print("Csatlakozási hiba: $e");
+      print("Connection error: $e");
       return false;
     }
   }
 
   Future<void> _discoverAndSubscribe() async {
     if (_device == null) return;
-    List<BluetoothService> services = await _device!.discoverServices();
+    final services = await _device!.discoverServices();
 
-    for (BluetoothService service in services) {
+    for (final service in services) {
       if (service.uuid == imgServiceUuid) {
-        for (BluetoothCharacteristic c in service.characteristics) {
+        for (final c in service.characteristics) {
           if (c.uuid == imgControlUuid) _imgControl = c;
-          if (c.uuid == imgStatusUuid) _imgStatus = c;
-          if (c.uuid == imgDataUuid) _imgData = c;
+          if (c.uuid == imgStatusUuid)  _imgStatus  = c;
+          if (c.uuid == imgDataUuid)    _imgData    = c;
+        }
+      }
+      // Subscribe to battery notifications from CMD service
+      if (service.uuid == cmdServiceUuid) {
+        for (final c in service.characteristics) {
+          if (c.uuid == cmdBatUuid) {
+            await c.setNotifyValue(true);
+            c.onValueReceived.listen(_handleBattery);
+          }
         }
       }
     }
 
-    // Feliratkozás a státuszra és az adatra
     if (_imgStatus != null) {
       await _imgStatus!.setNotifyValue(true);
       _imgStatus!.onValueReceived.listen(_handleStatus);
@@ -101,108 +121,115 @@ class BleImageService {
       _imgData!.onValueReceived.listen(_handleData);
     }
 
-    // Várunk egy picit, majd kikérjük az első képet!
     await Future.delayed(const Duration(milliseconds: 500));
     await _requestImage(_nextIndexToRequest);
   }
 
-  // 4. Kép kikérése az ESP-től (Az 'R' parancs)
+  // ── BLE protocol ──────────────────────────────────────────────────────────
+
   Future<void> _requestImage(int index) async {
     if (_imgControl == null) return;
-    print("Kikérés: $index. számú kép...");
-    
     final cmd = Uint8List(5);
-    cmd[0] = 0x52; // 'R' betű ASCII kódja
+    cmd[0] = 0x52; // 'R'
     ByteData.view(cmd.buffer).setUint32(1, index, Endian.big);
-    
     await _imgControl!.write(cmd, withoutResponse: false);
+    print("Requested image $index");
   }
 
-  // 5. Státusz üzenetek feldolgozása az ESP-től
   void _handleStatus(List<int> value) {
     if (value.isEmpty) return;
-    int msgType = value[0];
 
-    if (msgType == 0x53) { // 'S' - Start
-      final bd = ByteData.view(Uint8List.fromList(value).buffer);
-      _expectedBytes = bd.getUint32(5, Endian.big);
-      _expectedChunks = bd.getUint16(9, Endian.big);
-      
-      _imageBuffer = Uint8List(_expectedBytes); // Lefoglaljuk a RAM-ot
-      _chunksReceived = 0;
-      print("Kép jön! Méret: $_expectedBytes byte, Darabok: $_expectedChunks");
+    switch (value[0]) {
+      case 0x53: // 'S' — start
+        final bd = ByteData.view(Uint8List.fromList(value).buffer);
+        _expectedBytes  = bd.getUint32(5, Endian.big);
+        _expectedChunks = bd.getUint16(9, Endian.big);
+        _imageBuffer    = Uint8List(_expectedBytes);
+        _chunksReceived = 0;
+        print("Incoming image: $_expectedBytes bytes, $_expectedChunks chunks");
 
-    } else if (msgType == 0x45) { // 'E' - End
-      print("Kép sikeresen megérkezett az appba!");
-      _reconstructAndUploadImage();
+      case 0x45: // 'E' — end
+        print("Image transfer complete");
+        _reconstructAndUpload();
 
-    } else if (msgType == 0x4E) { // 'N' - Not available (Nincs több kép)
-      final bd = ByteData.view(Uint8List.fromList(value).buffer);
-      final lastAvailable = bd.getUint32(5, Endian.big);
-      print("Nincs új kép. A legutolsó létező index a kamerán: $lastAvailable");
+      case 0x4E: // 'N' — not available (caught up)
+        final bd = ByteData.view(Uint8List.fromList(value).buffer);
+        final last = bd.getUint32(5, Endian.big);
+        print("No new image. Latest on device: $last");
 
-    } else if (msgType == 0x58) { // 'X' - Error
-      print("Hiba az ESP oldalon! Kód: ${value[5]}");
-      if (value[5] != 5) {
-        // Ha nem timeout hiba, ugorjunk a következő képre
-        _nextIndexToRequest++;
-        _requestImage(_nextIndexToRequest);
-      }
+      case 0x58: // 'X' — error
+        final code = value[5];
+        print("ESP error code: $code");
+        if (code != 5) {
+          // Error code 5 is just a timeout nudge — don't skip the index.
+          _nextIndexToRequest++;
+          _requestImage(_nextIndexToRequest);
+        }
     }
   }
 
-  // 6. Nyers bájtok összerakása a megfelelő helyre
   void _handleData(List<int> value) {
     if (value.length < 3 || _imageBuffer == null) return;
-    
     final bd = ByteData.view(Uint8List.fromList(value).buffer);
     final chunkIndex = bd.getUint16(0, Endian.big);
-    final payload = value.sublist(2);
-    
-    final offset = chunkIndex * 396; // A config.h BUFFERSIZE alapján
-    
+    final payload    = value.sublist(2);
+    final offset     = chunkIndex * 396; // BUFFERSIZE from config.h
     if (offset + payload.length <= _imageBuffer!.length) {
       _imageBuffer!.setRange(offset, offset + payload.length, payload);
       _chunksReceived++;
     }
   }
 
-  // 7. Backend feltöltés és következő kép kérése
-  Future<void> _reconstructAndUploadImage() async {
+  // ── Upload ────────────────────────────────────────────────────────────────
+
+  Future<void> _reconstructAndUpload() async {
     if (_imageBuffer == null) return;
 
     if (_chunksReceived != _expectedChunks) {
-      print("Hiányzó darabok! Újrakérés...");
+      print("Missing chunks ($_chunksReceived / $_expectedChunks). Retrying...");
       await Future.delayed(const Duration(milliseconds: 200));
       await _requestImage(_nextIndexToRequest);
       return;
     }
 
-    String filename = "image_${_nextIndexToRequest.toString().padLeft(4, '0')}.jpg";
-    
+    final prefs    = await SharedPreferences.getInstance();
+    final token    = prefs.getString('auth_token') ?? '';
+    final filename = "image_${_nextIndexToRequest.toString().padLeft(4, '0')}.jpg";
+
     try {
-      // 187.124.25.127 a te géped IP címe, ezen fut a Node.js szervered
-      var uri = Uri.parse('http://187.124.25.127:3000/api/images/upload');
-      var request = http.MultipartRequest('POST', uri);
-      
-      request.files.add(http.MultipartFile.fromBytes('image', _imageBuffer!, filename: filename));
-      var response = await request.send();
+      final uri     = Uri.parse('http://187.124.25.127:3000/api/images/upload');
+      final request = http.MultipartRequest('POST', uri);
+
+      // Pass auth token and the current image index so the server can
+      // associate the upload with the right session/user.
+      request.headers['Authorization'] = 'Bearer $token';
+      request.fields['imageIndex']     = _nextIndexToRequest.toString();
+      request.files.add(
+        http.MultipartFile.fromBytes('image', _imageBuffer!, filename: filename),
+      );
+
+      final response = await request.send().timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
-        print("Sikeresen elküldve a backendnek: $filename");
-        
-        // Ha sikeres, léptetjük az indexet és elmentjük a memóriába
+        print("Uploaded $filename successfully");
+
+        // Advance index and persist
         _nextIndexToRequest++;
-        final prefs = await SharedPreferences.getInstance();
         await prefs.setInt('aigls_next_index', _nextIndexToRequest);
-        
-        // Rögtön kikérjük a következőt!
+
+        // ── KEY CHANGE: tell DataProvider the server has new data ──────────
+        // This triggers an immediate re-fetch of activities/summary/quest
+        // so the UI updates right after this image is processed, rather than
+        // waiting for the next 65-second poll tick.
+        await dataProvider?.onImageUploaded();
+
+        // Request the next image from the camera
         await _requestImage(_nextIndexToRequest);
       } else {
-        print("Backend hiba: ${response.statusCode}");
+        print("Upload failed: ${response.statusCode}");
       }
     } catch (e) {
-      print("Hálózati hiba a backend feltöltéskor: $e");
+      print("Upload error: $e");
     }
   }
 }

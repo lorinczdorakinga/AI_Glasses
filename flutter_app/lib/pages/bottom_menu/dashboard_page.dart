@@ -3,13 +3,14 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:confetti/confetti.dart';
+import 'package:provider/provider.dart';
 import '../../overlays/sneak_mode_overlay.dart';
 import '../../overlays/daily_quest_overlay.dart';
 import '../../overlays/activity_list_overlay.dart';
 import '../../components/good_pulsing_sphere.dart';
 import '../../components/bad_pulsing_sphere.dart';
-import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/data_provider.dart'; // Fontos: beimportáltuk a DataProvider-t
 import '../../screens/login_screen.dart';
 
 class DashboardPage extends StatefulWidget {
@@ -20,28 +21,18 @@ class DashboardPage extends StatefulWidget {
 }
 
 class _DashboardPageState extends State<DashboardPage> {
-  bool _isLoading = true;
+  bool _isLoadingSettings = true;
   String _currentGoal = 'focus';
   int _currentLevel = 1;
   int _completedQuests = 0;
 
   late ConfettiController _confettiController;
 
-  final List<DailyActivity> todayActivities = [
-    DailyActivity(time: "7:08", description: "energiaital", isGood: false),
-    DailyActivity(time: "7:56", description: "séta, kávé helyett", isGood: true),
-    DailyActivity(time: "8:10", description: "cigaretta", isGood: false),
-    DailyActivity(time: "8:39", description: "tanulás", isGood: true),
-    DailyActivity(time: "9:10", description: "veszekedés a buszsofőrrel", isGood: false),
-  ];
-
-  List <DailyActivity> _todayActivities = [];
-
   @override
   void initState() {
     super.initState();
     _confettiController = ConfettiController(duration: const Duration(seconds: 3));
-    _fetchDashboardData();
+    _fetchSettingsData(); 
   }
 
   @override
@@ -50,70 +41,59 @@ class _DashboardPageState extends State<DashboardPage> {
     super.dispose();
   }
 
-  Future<void> _fetchDashboardData() async {
+  // Ez most már KIZÁRÓLAG a /api/auth/settings adatokat kéri le, a JSON fájlokat a DataProvider intézi!
+  Future<void> _fetchSettingsData() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('auth_token') ?? '';
-      final response = await http.get(
+
+      final settingsResponse = await http.get(
         Uri.parse('http://187.124.25.127:3000/api/auth/settings'),
         headers: {'Authorization': 'Bearer $token'},
       );
 
       if (!mounted) return;
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+      if (settingsResponse.statusCode == 200) {
+        final data = json.decode(settingsResponse.body);
         final goal = data['goal'] ?? 'focus';
         final levels = data['levels'] ?? {};
-        
-        final rawActivities = data['activities'] as List<dynamic>? ?? [];
-        List<DailyActivity> fetchedActivities = rawActivities.map((item) => DailyActivity(
-          time: item['time'] ?? '00:00',
-          description: item['description'] ?? 'Unknown activity',
-          isGood: item['isGood'] ?? false,
-        )).toList();
-
-        // ÚJ: A MOCK LOGIKA ITT VAN! Ha a backend üreset küld, betöltjük a teszt adatokat.
-        if (fetchedActivities.isEmpty) {
-          fetchedActivities = [
-            DailyActivity(time: "7:08", description: "energiaital", isGood: false),
-            DailyActivity(time: "7:56", description: "séta, kávé helyett", isGood: true),
-            DailyActivity(time: "8:10", description: "cigaretta", isGood: false),
-            DailyActivity(time: "8:39", description: "tanulás", isGood: true),
-            DailyActivity(time: "9:10", description: "veszekedés a buszsofőrrel", isGood: false),
-          ];
-        }
 
         setState(() {
           _currentGoal = goal;
           _currentLevel = levels[goal] ?? 1;
           _completedQuests = data['completedQuests'] ?? 0;
-          _todayActivities = fetchedActivities; // Ezt használja majd a gömb logikája is!
-          _isLoading = false;
+          _isLoadingSettings = false;
         });
-      } else if (response.statusCode == 401 || response.statusCode == 403) {
+      } else if (settingsResponse.statusCode == 401 || settingsResponse.statusCode == 403) {
         await context.read<AuthProvider>().logout();
         if (!mounted) return;
         Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const LoginScreen()), (route) => false);
       } else {
-        setState(() => _isLoading = false);
+        setState(() => _isLoadingSettings = false);
       }
     } catch (e) {
-      if (mounted) setState(() => _isLoading = false);
+      print("Hálózati hiba: $e");
+      if (mounted) setState(() => _isLoadingSettings = false);
     }
   }
+
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) return const Center(child: CircularProgressIndicator(color: Colors.teal));
+    // 1. Felolvassuk a json fájlokból betöltött adatokat a DataProviderből
+    final data = context.watch<DataProvider>();
 
-    // Számolás az ÚJ listából
-    int goodCount = _todayActivities.where((a) => a.isGood).length;
-    int badCount = _todayActivities.where((a) => !a.isGood).length;
+    if (_isLoadingSettings) return const Center(child: CircularProgressIndicator(color: Colors.teal));
+
+    // 2. Kiszámoljuk a gömb színét a szerverről jövő json lista alapján
+    int goodCount = data.activities.where((a) => a.score).length;
+    int badCount = data.activities.where((a) => !a.score).length;
     bool showGoodSphere = goodCount >= badCount;
+    
     double progressValue = _completedQuests / 5.0;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F8FA), // Elegáns, világos háttér
+      backgroundColor: const Color(0xFFF7F8FA),
       body: SafeArea(
         child: Stack(
           children: [
@@ -121,7 +101,6 @@ class _DashboardPageState extends State<DashboardPage> {
               padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
               child: Column(
                 children: [
-                  // PRÉMIUM FEJLÉC KÁRTYA
                   Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
@@ -163,7 +142,6 @@ class _DashboardPageState extends State<DashboardPage> {
                           ],
                         ),
                         const SizedBox(height: 24),
-                        // ANIMÁLT XP SÁV
                         Row(
                           children: [
                             Text('$_currentLevel', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey.shade400)),
@@ -205,10 +183,24 @@ class _DashboardPageState extends State<DashboardPage> {
                   
                   const Spacer(),
                   
-                  // ANIMÁLT GÖMB
+                  // ── IDE KERÜLT ÁT A LISTA MEGNYITÁSA ─────────────────
                   GestureDetector(
-                    // Átadjuk az új listát a felugró ablaknak
-                    onTap: () => showActivityListDialog(context, _todayActivities), 
+                    onTap: data.activities.isEmpty
+                        ? null // Ha üres a json, nem csinál semmit a kattintásra
+                        : () {
+                            // Átalakítjuk a Provider adatait a felugró ablak számára
+                            List<DailyActivity> mappedActivities = data.activities.map((e) {
+                              final hour = e.timestamp.hour.toString().padLeft(2, '0');
+                              final min  = e.timestamp.minute.toString().padLeft(2, '0');
+                              return DailyActivity(
+                                time: '$hour:$min',
+                                description: e.activity,
+                                isGood: e.score,
+                              );
+                            }).toList();
+                            
+                            showActivityListDialog(context, mappedActivities);
+                          },
                     child: Hero(
                       tag: 'sphere',
                       child: showGoodSphere ? const GoodPulsingSphere() : const BadPulsingSphere(),
@@ -217,7 +209,6 @@ class _DashboardPageState extends State<DashboardPage> {
                   
                   const Spacer(),
                   
-                  // PRÉMIUM DAILY QUEST GOMB
                   Container(
                     width: double.infinity,
                     height: 65,
@@ -236,7 +227,7 @@ class _DashboardPageState extends State<DashboardPage> {
                           showDailyQuestDialog(
                             context, 
                             onQuestCompleted: (isLevelUp) {
-                              _fetchDashboardData();
+                              _fetchSettingsData();
                               if (isLevelUp) {
                                 _confettiController.play();
                                 ScaffoldMessenger.of(context).showSnackBar(
