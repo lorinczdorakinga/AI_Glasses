@@ -183,17 +183,18 @@ class _DashboardPageState extends State<DashboardPage> {
                   
                   const Spacer(),
                   
-                  // ── IDE KERÜLT ÁT A LISTA MEGNYITÁSA ─────────────────
                   GestureDetector(
                     onTap: data.activities.isEmpty
-                        ? null // Ha üres a json, nem csinál semmit a kattintásra
+                        ? null 
                         : () {
-                            // Átalakítjuk a Provider adatait a felugró ablak számára
-                            List<DailyActivity> mappedActivities = data.activities.map((e) {
-                              final hour = e.timestamp.hour.toString().padLeft(2, '0');
-                              final min  = e.timestamp.minute.toString().padLeft(2, '0');
+                            // 1. Másolat készítése és Sorbarendezés (Időrendbe rakás)
+                            var sortedActivities = List<ActivityEntry>.from(data.activities);
+                            sortedActivities.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+
+                            // 2. Tiszta és biztonságos formázás a felugró ablaknak
+                            List<DailyActivity> mappedActivities = sortedActivities.map((e) {
                               return DailyActivity(
-                                time: '$hour:$min',
+                                time: e.displayTime, // Ezt már az okos DataProvider csinálja
                                 description: e.activity,
                                 isGood: e.score,
                               );

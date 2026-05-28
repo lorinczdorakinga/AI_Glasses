@@ -128,7 +128,7 @@ class _ProgressPageState extends State<ProgressPage> {
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 itemCount: 5,
-                separatorBuilder: (_, __) => const SizedBox(height: 12),
+                separatorBuilder: (_, _) => const SizedBox(height: 12),
                 itemBuilder: (context, index) {
                   // Kiszedjük a 0-5 skálás értéket és elosztjuk 5-tel, hogy 0.0 és 1.0 közötti %-ot kapjunk
                   final scoreValue = summary.radarValue(_keys[index]);
